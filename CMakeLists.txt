@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 project(Hilbert)
 
 find_package(Boost COMPONENTS thread system)
+find_package(ProtobufPlugin REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
 
