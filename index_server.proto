@@ -1,0 +1,122 @@
+package index.server;
+
+option java_outer_classname = "IndexServerProtos";
+
+message IndexFormat {
+  enum DimensionType {
+    INT32 = 0;
+    UINT32 = 1;
+    INT64 = 2;
+    UINT64 = 3;
+    IEE754_SINGLE = 100;
+    IEE754_DOUBLE = 101;
+  }
+  
+  required DimensionType type = 1;
+  
+  message Dimension {
+    optional string name = 1;
+  }
+  
+  repeated Dimension dimension = 2;
+}
+
+message Point {
+  extensions 100 to 299;
+}
+
+message Int32Point {
+  repeated int32 data = 1 [packed = true];
+  extend Point {
+    optional Int32Point point = 100;
+  }
+}
+
+message UInt32Point {
+  repeated uint32 data = 1 [packed = true];
+  extend Point {
+    optional UInt32Point point = 101;
+  }
+}
+
+message Int64Point {
+  repeated int64 data = 1 [packed = true];
+  extend Point {
+    optional Int64Point point = 102;
+  }
+}
+
+message UInt64Point {
+  repeated uint64 data = 1 [packed = true];
+  extend Point {
+    optional UInt64Point point = 103;
+  }
+}
+
+message IEE754SinglePoint {
+  repeated float data = 1 [packed = true];
+  extend Point {
+    optional IEE754SinglePoint point = 104;
+  }
+}
+
+message IEE754DoublePoint {
+  repeated double data = 1 [packed = true];
+  extend Point {
+    optional IEE754DoublePoint point = 105;
+  }
+}
+
+message Void {
+}
+
+service IndexQueryService {
+  rpc UseStore(UseStore) returns (Void);
+  rpc BBoxQuery(BBoxQuery) returns (QueryResult);
+}
+
+message UseStore {
+  required string location = 0;
+}
+
+message QueryOptions {
+  optional int32 limit = 0 [default = 1000];
+  optional int32 offset = 1 [default = 0];
+}
+
+message BBoxQuery {
+  required QueryOptions options = 0;
+  required Point from = 1;
+  required Point to = 2;
+}
+
+message QueryResult {
+  optional uint64 exact_total = 0;
+  repeated IndexRecord values = 1;
+}
+
+message CreateStore {
+  required string location = 0;
+  required IndexFormat format = 1;
+  optional boolean overwrite [default = false] = 2;
+}
+
+message IndexRecord {
+  required Point key = 0;
+  required bytes value = 1;
+}
+
+message BuilderData {
+  repeated IndexRecord records = 0;
+}
+
+message BuilderProgress {
+  optional double progress = 0;
+}
+
+service IndexBuilderService {
+  rpc CreateStore(CreateStore) returns (Void);
+  rpc FeedData(BuilderData) returns (Void);
+  rpc BuildIndex(Void) returns (Void);
+  rpc GetProgress(Void) returns (BuilderProgress);
+}
