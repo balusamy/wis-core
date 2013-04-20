@@ -6,7 +6,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 include(rpcz_functions)
 
-find_package(Boost COMPONENTS thread system)
+find_package(Boost COMPONENTS thread system filesystem)
 find_package(ProtobufPlugin REQUIRED)
 find_package(RPCZ REQUIRED)
 
