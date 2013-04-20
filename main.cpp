@@ -2,6 +2,8 @@
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 
+#include "server.hpp"
+
 //  Provide random number from 0..(num-1)
 #if (defined (__WINDOWS__)) || (defined (__UTYPE_IBMAIX)) || (defined (__UTYPE_HPUX)) || (defined (__UTYPE_SUNOS))
 #   define randof(num)  (int) ((float) (num) * rand () / (RAND_MAX + 1.0))
@@ -101,7 +103,17 @@ server_worker (zmqpp::context *ctx)
     }
 }
 
-int main()
+int main() {
+  rpcz::application application;
+  rpcz::server server(application);
+  indexserver::IndexBuilder index_builder_service;
+  server.register_service(&index_builder_service);
+  std::cout << "Serving requests on port 5555." << std::endl;
+  server.bind("tcp://*:5555");
+  application.run();
+}
+
+/*int main()
 {
     boost::thread c1(&client_task);
     boost::thread c2(&client_task);
@@ -111,4 +123,4 @@ int main()
     boost::this_thread::sleep(boost::posix_time::seconds(5));
 
     return 0;
-}
+}*/

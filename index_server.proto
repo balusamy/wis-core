@@ -1,4 +1,4 @@
-package index.server;
+package indexserver;
 
 option java_outer_classname = "IndexServerProtos";
 
@@ -70,53 +70,53 @@ message IEE754DoublePoint {
 message Void {
 }
 
-service IndexQueryService {
-  rpc UseStore(UseStore) returns (Void);
-  rpc BBoxQuery(BBoxQuery) returns (QueryResult);
-}
-
 message UseStore {
-  required string location = 0;
+  required string location = 1;
 }
 
 message QueryOptions {
-  optional int32 limit = 0 [default = 1000];
-  optional int32 offset = 1 [default = 0];
+  optional int32 limit = 1 [default = 1000];
+  optional int32 offset = 2 [default = 0];
 }
 
 message BBoxQuery {
-  required QueryOptions options = 0;
-  required Point from = 1;
-  required Point to = 2;
+  required QueryOptions options = 1;
+  required Point from = 2;
+  required Point to = 3;
 }
 
 message QueryResult {
-  optional uint64 exact_total = 0;
-  repeated IndexRecord values = 1;
+  optional uint64 exact_total = 1;
+  repeated IndexRecord values = 2;
+}
+
+service IndexQueryService {
+  rpc useStore(UseStore) returns (Void);
+  rpc bboxQuery(BBoxQuery) returns (QueryResult);
 }
 
 message CreateStore {
-  required string location = 0;
-  required IndexFormat format = 1;
-  optional boolean overwrite [default = false] = 2;
+  required string location = 1;
+  required IndexFormat format = 2;
+  optional bool overwrite = 3 [default = false];
 }
 
 message IndexRecord {
-  required Point key = 0;
-  required bytes value = 1;
+  required Point key = 1;
+  required bytes value = 2;
 }
 
 message BuilderData {
-  repeated IndexRecord records = 0;
+  repeated IndexRecord records = 1;
 }
 
 message BuilderProgress {
-  optional double progress = 0;
+  optional double progress = 1;
 }
 
 service IndexBuilderService {
-  rpc CreateStore(CreateStore) returns (Void);
-  rpc FeedData(BuilderData) returns (Void);
-  rpc BuildIndex(Void) returns (Void);
-  rpc GetProgress(Void) returns (BuilderProgress);
+  rpc createStore(CreateStore) returns (Void);
+  rpc feedData(BuilderData) returns (Void);
+  rpc buildIndex(Void) returns (Void);
+  rpc getProgress(Void) returns (BuilderProgress);
 }
