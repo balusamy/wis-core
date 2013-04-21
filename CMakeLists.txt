@@ -19,6 +19,7 @@ PROTOBUF_GENERATE_RPCZ(INDEX_RPCZ_SRCS INDEX_RPCZ_HDRS index_server.proto)
 set(hilbert_src
     main.cpp
     server.cpp
+    stagedb.cpp
     hilbert.cpp
     ${INDEX_RPCZ_SRCS}
     ${INDEX_RPCZ_HDRS}
@@ -27,5 +28,7 @@ set(hilbert_src
 add_executable(hilbert ${hilbert_src})
 
 find_library(ZMQPP_LIBRARY NAMES libzmqpp.so.2)
+find_library(LEVELDB_LIBRARY NAMES leveldb)
 
-target_link_libraries(hilbert ${Boost_LIBRARIES} ${ZMQPP_LIBRARY} ${RPCZ_LIBRARIES})
+target_link_libraries(hilbert ${Boost_LIBRARIES} ${ZMQPP_LIBRARY} ${RPCZ_LIBRARIES}
+    ${LEVELDB_LIBRARY})

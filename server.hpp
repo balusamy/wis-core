@@ -10,13 +10,14 @@ namespace indexserver {
 struct IndexBuilder
     : public IndexBuilderService
     , public boost::noncopyable
-    , private pimpl<IndexBuilder>::value_semantics
+    , private pimpl<IndexBuilder>::pointer_semantics
 {
     IndexBuilder();
     virtual ~IndexBuilder();
 
 private:
     virtual void createStore(const CreateStore& request, rpcz::reply<Void> reply);
+    virtual void feedData(const BuilderData& request, rpcz::reply<Void> reply);
     virtual void buildIndex(const Void& request, rpcz::reply<Void> reply);
 };
 
