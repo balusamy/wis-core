@@ -36,9 +36,7 @@ void stage_db::append(indexserver::BuilderData const& data)
     leveldb::WriteBatch batch;
     for (indexserver::IndexRecord const& r : data.records())
     {
-        std::string key;
-        r.key().SerializeToString(&key);
-        batch.Put(key, r.value());
+        batch.Put(r.key(), r.value());
     }
     impl.db->Write(leveldb::WriteOptions(), &batch);
 }

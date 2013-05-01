@@ -18,7 +18,6 @@ struct pimpl<indexserver::IndexBuilder>::implementation
 {
     fs::path store_root;
     indexserver::IndexFormat format;
-    size_t dimensions;
     std::unique_ptr<stage_db> db;
 };
 
@@ -73,7 +72,6 @@ void IndexBuilder::createStore(const CreateStore& request, rpcz::reply<Void> rep
 
         impl.store_root = location;
         impl.format = request.format();
-        impl.dimensions = impl.format.dimension_size();
     } RPC_REPORT_EXCEPTIONS(reply)
     reply.send(Void());
 }
