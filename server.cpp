@@ -13,14 +13,6 @@
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 
-template <>
-struct pimpl<indexer::IndexBuilder>::implementation
-{
-    fs::path store_root;
-    indexer::IndexFormat format;
-    std::unique_ptr<indexer::index> index;
-};
-
 namespace rpc_error {
 static const int STORE_ALREADY_EXISTS = 1;
 static const int INVALID_STORE = 2;
@@ -30,29 +22,22 @@ namespace indexer {
 
 static const int STORE_FORMAT = 1;
 
-IndexBuilder::IndexBuilder()
-{
 }
 
-IndexBuilder::~IndexBuilder()
+template <>
+struct pimpl<indexer::IndexBuilder>::implementation
 {
-}
-
-void IndexBuilder::createStore(const CreateStore& request, rpcz::reply<Void> reply)
-{
-    implementation& impl = **this;
-    try {
-        std::cout << "Got request: '" << request.DebugString() << "'" << std::endl;
+    void do_create_store(const indexer::StoreParameters& request) {
         fs::path location = request.location();
         if (fs::is_directory(location)) {
             if (!request.overwrite()) {
-                reply.Error(::rpc_error::STORE_ALREADY_EXISTS,
-                        str(boost::format("Store at %s already exists") % location));
-                return;
+                BOOST_THROW_EXCEPTION(common_exception()
+                        << errinfo_rpc_code(::rpc_error::STORE_ALREADY_EXISTS)
+                        << errinfo_message(str(boost::format("Store at %s already exists") % location)));
             } else {
                 std::cout << "Recreating store at " << location << std::endl;
-                if (impl.index)
-                    impl.index.reset();
+                if (this->index)
+                    this->index.reset();
                 fs::remove_all(location);
             }
         } else {
@@ -61,17 +46,78 @@ void IndexBuilder::createStore(const CreateStore& request, rpcz::reply<Void> rep
         fs::create_directories(location);
 
         io::stream<io::file_sink> store_format((location / "format").string());
-        store_format << STORE_FORMAT;
+        store_format << indexer::STORE_FORMAT;
         store_format.close();
 
-        fs::ofstream store_info((location / "info").string());
+        io::stream<io::file_sink> store_info((location / "info").string());
         request.format().SerializeToOstream(&store_info);
         store_info.close();
+    }
 
-        impl.index.reset(new index(location / "index"));
+    void do_open_store(const indexer::StoreParameters& request) {
+        fs::path location = request.location();
 
-        impl.store_root = location;
-        impl.format = request.format();
+        io::stream<io::file_source> store_format((location / "format").string());
+        int format;
+        store_format >> format;
+        store_format.close();
+        if (format != indexer::STORE_FORMAT) {
+            BOOST_THROW_EXCEPTION(common_exception()
+                    << errinfo_rpc_code(::rpc_error::INVALID_STORE)
+                    << errinfo_message(str(boost::format("Store at %s has invalid "
+                                "format %d, expecting %d") 
+                            % location % format % indexer::STORE_FORMAT)));
+        }
+
+        this->index.reset(new indexer::index(location / "index"));
+
+        if (request.has_format()) {
+            this->format = request.format();
+        } else {
+            io::stream<io::file_source> store_info((location / "info").string());
+            this->format.ParseFromIstream(&store_info);
+            store_info.close();
+        }
+
+        this->store_root = location;
+    }
+
+    fs::path store_root;
+    indexer::IndexFormat format;
+    std::unique_ptr<indexer::index> index;
+};
+
+namespace indexer {
+
+IndexBuilder::IndexBuilder()
+{
+}
+
+IndexBuilder::~IndexBuilder()
+{
+}
+
+void IndexBuilder::createStore(const StoreParameters& request, rpcz::reply<Void> reply)
+{
+    implementation& impl = **this;
+    try {
+        std::cout << "Got request: '" << request.DebugString() << "'" << std::endl;
+
+        impl.do_create_store(request);
+        impl.do_open_store(request);
+
+    } RPC_REPORT_EXCEPTIONS(reply)
+    reply.send(Void());
+}
+
+void IndexBuilder::openStore(const StoreParameters& request, rpcz::reply<Void> reply)
+{
+    implementation& impl = **this;
+    try {
+        std::cout << "Got request: '" << request.DebugString() << "'" << std::endl;
+
+        impl.do_open_store(request);
+
     } RPC_REPORT_EXCEPTIONS(reply)
     reply.send(Void());
 }

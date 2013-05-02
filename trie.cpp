@@ -489,6 +489,7 @@ struct pimpl<trie>::implementation
         : part_dir(part_dir)
         , part_grow_policy(new limited_grow_policy(1U << 28, 0.8, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
     {
+        fs::create_directories(part_dir);
         // Will create it if missing
         load_part(0, true)->create_root("");
     }

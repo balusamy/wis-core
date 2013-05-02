@@ -33,9 +33,9 @@ service IndexQueryService {
   rpc wordQuery(WordQuery) returns (QueryResult);
 }
 
-message CreateStore {
+message StoreParameters {
   required string location = 1;
-  required IndexFormat format = 2;
+  optional IndexFormat format = 2;
   optional bool overwrite = 3 [default = false];
 }
 
@@ -53,7 +53,8 @@ message BuilderProgress {
 }
 
 service IndexBuilderService {
-  rpc createStore(CreateStore) returns (Void);
+  rpc createStore(StoreParameters) returns (Void);
+  rpc openStore(StoreParameters) returns (Void);
   rpc feedData(BuilderData) returns (Void);
   rpc buildIndex(Void) returns (Void);
   rpc getProgress(Void) returns (BuilderProgress);

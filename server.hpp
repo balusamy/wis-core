@@ -16,7 +16,8 @@ struct IndexBuilder
     virtual ~IndexBuilder();
 
 private:
-    virtual void createStore(const CreateStore& request, rpcz::reply<Void> reply);
+    virtual void createStore(const StoreParameters& request, rpcz::reply<Void> reply);
+    virtual void openStore(const StoreParameters& request, rpcz::reply<Void> reply);
     virtual void feedData(const BuilderData& request, rpcz::reply<Void> reply);
     virtual void buildIndex(const Void& request, rpcz::reply<Void> reply);
 };
