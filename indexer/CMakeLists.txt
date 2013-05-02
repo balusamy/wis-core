@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(Indexer)
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake_modules)
 
 include(rpcz_functions)
 
@@ -15,7 +15,7 @@ include_directories(${Boost_INCLUDE_DIRS} ${RPCZ_INCLUDE_DIRS}
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++0x")
 
-PROTOBUF_GENERATE_RPCZ(INDEX_RPCZ_SRCS INDEX_RPCZ_HDRS index_server.proto)
+PROTOBUF_GENERATE_RPCZ(INDEX_RPCZ_SRCS INDEX_RPCZ_HDRS ../index_server.proto)
 
 set(index_server_src
     main.cpp
