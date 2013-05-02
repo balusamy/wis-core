@@ -19,7 +19,7 @@ SLOT="0"
 KEYWORDS="~amd64"
 IUSE="+python static-libs test"
 
-RDEPEND="net-libs/zeromq
+RDEPEND=">=net-libs/zeromq-3
 	dev-libs/boost
 	dev-libs/protobuf
     python? ( ${PYTHON_DEPS} )"
