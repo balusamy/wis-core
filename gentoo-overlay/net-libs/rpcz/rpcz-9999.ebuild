@@ -5,7 +5,7 @@
 EAPI=5
 
 DISTUTILS_OPTIONAL=1
-PYTHON_COMPAT=( python{2_6,2_7} )
+PYTHON_COMPAT=( python{2_6,2_7,3_2} )
 
 inherit eutils git-2 cmake-utils distutils-r1
 
@@ -34,6 +34,7 @@ src_prepare() {
 	epatch "${FILESDIR}/${P}-zmqpp.patch"
 	epatch "${FILESDIR}/${P}-fix-header-install.patch"
 	epatch "${FILESDIR}/${P}-not-install-tests.patch"
+	epatch "${FILESDIR}/${P}-python3.patch"
 	use python && distutils-r1_src_prepare
 }
 

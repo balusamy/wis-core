@@ -1,0 +1,49 @@
+diff --git a/python/compiler.py b/python/compiler.py
+index a1dd408..e2a4798 100644
+--- a/python/compiler.py
++++ b/python/compiler.py
+@@ -1,5 +1,7 @@
+ #!/usr/bin/env python
+
++from __future__ import print_function
++
+ import os
+ import sys
+ from distutils import spawn
+@@ -28,10 +30,10 @@ def generate_proto(source, output_dir,
+
+     if (os.path.exists(output) and
+         os.path.getmtime(source) <= os.path.getmtime(output)):
+-        print "Generated proto %s is up-to-date." % output
++        print("Generated proto {0} is up-to-date.".format(output))
+         return
+
+-    print "Generating %s" % output
++    print("Generating {0}".format(output))
+
+     protoc_command = protoc + ' -I "%s" --%s_out="%s" "%s"' % (
+             os.path.dirname(source), with_plugin, output_dir, source)
+@@ -40,11 +42,11 @@ def generate_proto(source, output_dir,
+             protoc_command += ' --plugin=protoc-gen-%s=%s' % (with_plugin,
+                                                               plugin_binary)
+         else:
+-            print ("Plugin not found at '%s'. We are going to run protoc "
+-                   "anyway, and perhaps it will be able to find it in its "
+-                   "search path." % plugin_binary)
++            print("Plugin not found at '{0}'. We are going to run protoc "
++                  "anyway, and perhaps it will be able to find it in its "
++                  "search path.".format(plugin_binary))
+     if os.system(protoc_command) != 0:
+         raise CompilerException(
+             "Error occurred while running protoc.")
+     else:
+-        print "Generated source successfully."
++        print("Generated source successfully.")
+diff --git a/python/rpcz/rpc.py b/python/rpcz/rpc.py
+index 1cbeb32..20ae4e6 100644
+--- a/python/rpcz/rpc.py
++++ b/python/rpcz/rpc.py
+@@ -1,4 +1,4 @@
+-import pywraprpcz
++import rpcz.pywraprpcz as pywraprpcz
+ from rpcz import rpcz_pb2
