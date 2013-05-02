@@ -6,6 +6,8 @@
 
 namespace fs = boost::filesystem;
 
+static const std::string EOS = "\xFF";
+
 template <>
 struct pimpl<indexer::index>::implementation
 {
@@ -28,8 +30,9 @@ void index::insert(boost::string_ref const& data)
 {
     implementation& impl = **this;
     std::string s(data);
+    s += EOS;
     impl.forward.insert(s);
-    std::reverse(s.begin(), s.end());
+    std::reverse(s.begin(), --s.end());
     impl.reverse.insert(s);
 }
 
