@@ -1,0 +1,21 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4737e04..2105ea0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,5 +36,5 @@ if(rpcz_build_examples)
+   add_subdirectory(examples/cpp)
+ endif(rpcz_build_examples)
+ 
+-file(GLOB RPCZ_PUBLIC_HEADERS include/rpcz/*.h)
++file(GLOB RPCZ_PUBLIC_HEADERS include/rpcz/*.hpp)
+ install(FILES ${RPCZ_PUBLIC_HEADERS} DESTINATION include/rpcz)
+diff --git a/src/rpcz/CMakeLists.txt b/src/rpcz/CMakeLists.txt
+index 55a0c75..5a3ffc1 100644
+--- a/src/rpcz/CMakeLists.txt
++++ b/src/rpcz/CMakeLists.txt
+@@ -38,3 +38,5 @@ install(TARGETS ${RPCZ_TARGET_LIBS} zsendrpc
+   LIBRARY DESTINATION lib
+   ARCHIVE DESTINATION lib
+ )
++
++install(FILES ${RPCZ_PB_HDRS} DESTINATION include/rpcz)

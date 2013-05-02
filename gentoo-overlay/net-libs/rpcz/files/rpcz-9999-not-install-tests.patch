@@ -1,0 +1,13 @@
+diff --git a/python/setup.py b/python/setup.py
+index 09b37dd..26cdc9a 100644
+--- a/python/setup.py
++++ b/python/setup.py
+@@ -47,7 +47,7 @@ setup(
+     description = "An RPC implementation for Protocol Buffer based on ZeroMQ",
+     license = "Apache 2.0",
+     keywords = "protocol-buffers rpc zeromq 0mq",
+-    packages=['rpcz', 'tests'],
++    packages=['rpcz'],
+     url='http://code.google.com/p/rpcz/',
+     long_description='',
+     classifiers=[
