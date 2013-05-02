@@ -421,6 +421,27 @@ struct pimpl<trie>::implementation
         return trie_node_ref(part, &root->root_node);
     }
 
+    std::pair<shared::trie_node::child*, size_t> find_longest_match(shared::trie_node* node, string_ref const& s)
+    {
+        size_t maxlen = 0;
+        shared::trie_node::child* match = nullptr;
+#if 1
+        for (shared::trie_node::child& child : node->children) {
+            size_t len = common_prefix_length(child.label, s);
+            if (len > maxlen) {
+                maxlen = len;
+                match = &child;
+            }
+        }
+#else
+        auto it = std::upper_bound(children.begin(), children.end(), s,
+                [](string_ref const& a, shared::trie_node::child const& b) {
+                    return boost::range::lexicographical_compare(a, b.label);
+                });
+#endif
+        return std::make_pair(match, maxlen);
+    }
+
     void do_insert(trie_node_ref const& ref, string_ref const& full_str, size_t start_pos)
     {
         string_ref s = full_str.substr(start_pos);
@@ -428,15 +449,9 @@ struct pimpl<trie>::implementation
         assert(ref.node() != nullptr);
         assert(ref.part() != nullptr);
         // Find the child with the longest matching prefix
-        size_t maxlen = 0;
+        size_t maxlen;
         shared::trie_node::child* match;
-        for (shared::trie_node::child& child : ref.node()->children) {
-            size_t len = common_prefix_length(child.label, s);
-            if (len > maxlen) {
-                maxlen = len;
-                match = &child;
-            }
-        }
+        std::tie(match, maxlen) = find_longest_match(ref.node(), s);
 
         if (maxlen == 0) {
             auto children = ref.node()->children;
@@ -472,6 +487,44 @@ struct pimpl<trie>::implementation
         boost::sort(new_ref.node()->children);
         match->label.erase(maxlen);
         match->ptr = new_ref.ptr();
+    }
+
+    void do_search_exact(trie_node_ref const& ref, string_ref const& full_str, size_t start_pos, trie::results_t& results)
+    {
+        string_ref s = full_str.substr(start_pos);
+        string_ref prefix = full_str.substr(0, start_pos);
+        if (s.empty()) {
+            // EOS hack :(
+            results.push_back(std::string(full_str.data(), full_str.size() - 1));
+            return;
+        }
+
+        auto children = ref.node()->children;
+        if (children.empty()) {
+            return;
+        }
+
+        // Find the child with the longest matching prefix
+        size_t maxlen;
+        shared::trie_node::child* match;
+        std::tie(match, maxlen) = find_longest_match(ref.node(), s);
+
+        if (maxlen == 0 || maxlen < match->label.size()) {
+            return;
+        }
+
+        string_ref rest = s.substr(maxlen);
+
+        if (rest.empty()) {
+            // EOS hack :(
+            results.push_back(std::string(full_str.data(), full_str.size() - 1));
+            return;
+        } else {
+            auto child_ref = resolve_node(match->ptr, ref.part());
+            if (child_ref.node() != nullptr) {
+                do_search_exact(child_ref, full_str, start_pos + maxlen, results);
+            }
+        }
     }
 
     trie_part* load_part(size_t idx, bool create_if_missing = false)
@@ -511,4 +564,11 @@ void trie::insert(boost::string_ref const& data)
     implementation& impl = **this;
     auto root = impl.resolve_external_ref(shared::external_ref(0, ""));
     impl.do_insert(root, data, 0);
+}
+
+void trie::search_exact(boost::string_ref const& data, results_t& results)
+{
+    implementation& impl = **this;
+    auto root = impl.resolve_external_ref(shared::external_ref(0, ""));
+    impl.do_search_exact(root, data, 0, results);
 }
