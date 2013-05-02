@@ -1,0 +1,12 @@
+diff --git a/python/google/protobuf/internal/cpp_message.py b/python/google/protobuf/internal/cpp_message.py
+index b2f888f..ac7ea73 100755
+--- a/python/google/protobuf/internal/cpp_message.py
++++ b/python/google/protobuf/internal/cpp_message.py
+@@ -624,6 +624,6 @@ def _AddMessageMethods(message_descriptor, cls):
+ def _AddPropertiesForExtensions(message_descriptor, cls):
+   """Adds properties for all fields in this protocol message type."""
+   extension_dict = message_descriptor.extensions_by_name
+-  for extension_name, extension_field in iteritemsextension_dict):
++  for extension_name, extension_field in iteritemsextension_dict:
+     constant_name = extension_name.upper() + '_FIELD_NUMBER'
+     setattr(cls, constant_name, extension_field.number)
