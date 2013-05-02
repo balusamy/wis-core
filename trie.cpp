@@ -446,6 +446,7 @@ struct pimpl<trie>::implementation
                     });
 
             children.insert(it, shared::trie_node::child(s));
+            return;
         }
 
         string_ref rest = s.substr(maxlen);
@@ -509,5 +510,5 @@ void trie::insert(boost::string_ref const& data)
 {
     implementation& impl = **this;
     auto root = impl.resolve_external_ref(shared::external_ref(0, ""));
-    impl.do_insert(root, data, 1);
+    impl.do_insert(root, data, 0);
 }
