@@ -16,6 +16,7 @@ namespace io = boost::iostreams;
 namespace rpc_error {
 static const int STORE_ALREADY_EXISTS = 1;
 static const int INVALID_STORE = 2;
+static const int STORE_NOT_FOUND = 3;
 }
 
 namespace indexer {
@@ -56,6 +57,13 @@ struct pimpl<indexer::IndexBuilder>::implementation
 
     void do_open_store(const indexer::StoreParameters& request) {
         fs::path location = request.location();
+
+        if (!fs::exists(location / "format")) {
+            BOOST_THROW_EXCEPTION(common_exception()
+                    << errinfo_rpc_code(::rpc_error::STORE_NOT_FOUND)
+                    << errinfo_message(str(boost::format("Store at %s does not exist") 
+                            % location)));
+        }
 
         io::stream<io::file_source> store_format((location / "format").string());
         int format;
