@@ -21,6 +21,7 @@ set(index_server_src
     main.cpp
     server.cpp
     stagedb.cpp
+    index.cpp
     trie.cpp
     ${INDEX_RPCZ_SRCS}
     ${INDEX_RPCZ_HDRS}

@@ -29,12 +29,12 @@ stage_db::stage_db(fs::path const& path, bool read_only)
     impl.db.reset(raw_db);
 }
 
-void stage_db::append(indexserver::BuilderData const& data)
+void stage_db::append(indexer::BuilderData const& data)
 {
     implementation& impl = **this;
 
     leveldb::WriteBatch batch;
-    for (indexserver::IndexRecord const& r : data.records())
+    for (indexer::IndexRecord const& r : data.records())
     {
         batch.Put(r.key(), r.value());
     }

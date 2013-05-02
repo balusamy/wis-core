@@ -5,7 +5,7 @@
 #include "index_server.rpcz.h"
 #include "pimpl/pimpl.h"
 
-namespace indexserver {
+namespace indexer {
 
 struct IndexBuilder
     : public IndexBuilderService

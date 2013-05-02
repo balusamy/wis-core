@@ -8,17 +8,17 @@
 #include <leveldb/db.h>
 
 #include "exceptions.hpp"
-#include "stagedb.hpp"
+#include "index.hpp"
 
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 
 template <>
-struct pimpl<indexserver::IndexBuilder>::implementation
+struct pimpl<indexer::IndexBuilder>::implementation
 {
     fs::path store_root;
-    indexserver::IndexFormat format;
-    std::unique_ptr<stage_db> db;
+    indexer::IndexFormat format;
+    std::unique_ptr<indexer::index> index;
 };
 
 namespace rpc_error {
@@ -26,7 +26,7 @@ static const int STORE_ALREADY_EXISTS = 1;
 static const int INVALID_STORE = 2;
 }
 
-namespace indexserver {
+namespace indexer {
 
 static const int STORE_FORMAT = 1;
 
@@ -51,8 +51,8 @@ void IndexBuilder::createStore(const CreateStore& request, rpcz::reply<Void> rep
                 return;
             } else {
                 std::cout << "Recreating store at " << location << std::endl;
-                if (impl.db)
-                    impl.db.reset();
+                if (impl.index)
+                    impl.index.reset();
                 fs::remove_all(location);
             }
         } else {
@@ -68,7 +68,7 @@ void IndexBuilder::createStore(const CreateStore& request, rpcz::reply<Void> rep
         request.format().SerializeToOstream(&store_info);
         store_info.close();
 
-        impl.db.reset(new stage_db(location / "staging"));
+        impl.index.reset(new index(location / "index"));
 
         impl.store_root = location;
         impl.format = request.format();
@@ -80,12 +80,14 @@ void IndexBuilder::feedData(const BuilderData& request, rpcz::reply<Void> reply)
 {
     implementation& impl = **this;
     try {
-        if (!impl.db)
+        if (!impl.index)
             BOOST_THROW_EXCEPTION(common_exception()
                 << errinfo_rpc_code(::rpc_error::INVALID_STORE)
-                << errinfo_message("Store staging db is not open"));
+                << errinfo_message("Store index is not open"));
         std::cout << "Feeding " << request.records_size() << " records" << std::endl;
-        impl.db->append(request);
+        for (IndexRecord const& rec : request.records()) {
+            impl.index->insert(rec.key());
+        }
     } RPC_REPORT_EXCEPTIONS(reply)
     reply.send(Void());
 }

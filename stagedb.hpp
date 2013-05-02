@@ -13,5 +13,5 @@ struct stage_db
     // TODO: pass comparator
     stage_db(boost::filesystem::path const& path, bool read_only = true);
 
-    void append(indexserver::BuilderData const& data);
+    void append(indexer::BuilderData const& data);
 };

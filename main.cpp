@@ -106,7 +106,7 @@ server_worker (zmqpp::context *ctx)
 int main() {
   rpcz::application application;
   rpcz::server server(application);
-  indexserver::IndexBuilder index_builder_service;
+  indexer::IndexBuilder index_builder_service;
   server.register_service(&index_builder_service);
   std::cout << "Serving requests on port 5555." << std::endl;
   server.bind("tcp://*:5555");
