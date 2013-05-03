@@ -6,14 +6,14 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake_modules)
 
 include(rpcz_functions)
 
-find_package(Boost COMPONENTS thread system filesystem)
+find_package(Boost COMPONENTS thread system filesystem program_options)
 find_package(ProtobufPlugin REQUIRED)
 find_package(RPCZ REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS} ${RPCZ_INCLUDE_DIRS} 
     ${CMAKE_CURRENT_BINARY_DIR})
 
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++0x")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++11")
 
 PROTOBUF_GENERATE_RPCZ(INDEX_RPCZ_SRCS INDEX_RPCZ_HDRS ../index_server.proto)
 
@@ -34,3 +34,6 @@ find_library(LEVELDB_LIBRARY NAMES leveldb)
 
 target_link_libraries(index_server ${Boost_LIBRARIES} ${ZMQPP_LIBRARY} ${RPCZ_LIBRARIES}
     ${LEVELDB_LIBRARY})
+
+add_executable(partstat partstat.cpp)
+target_link_libraries(partstat ${Boost_LIBRARIES})
