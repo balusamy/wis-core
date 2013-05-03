@@ -13,6 +13,7 @@
 #include <boost/interprocess/smart_ptr/unique_ptr.hpp>
 #include <boost/interprocess/smart_ptr/deleter.hpp>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/allocators/node_allocator.hpp>
 #include <boost/interprocess/allocators/cached_node_allocator.hpp>
 #include <boost/unordered_map.hpp>
@@ -77,35 +78,50 @@ template<typename Range1T, typename Range2T>
 
 namespace shared {
 
+typedef ipc::managed_mapped_file::segment_manager segment_manager;
+typedef cont::basic_string<char, std::char_traits<char>,
+    ipc::allocator<char, segment_manager>> string;
+
+template <typename T>
+ipc::allocator<T, segment_manager> make_allocator(segment_manager* mgr)
+{
+    return ipc::allocator<T, segment_manager>(mgr);
+}
+
 struct external_ref
 {
-    external_ref(string_ref const& prefix)
-        : prefix(prefix.begin(), prefix.end())
+    external_ref(string_ref const& prefix, segment_manager* mgr)
+        : prefix(prefix.begin(), prefix.end(), make_allocator<char>(mgr))
     {}
 
-    external_ref(size_t part_number, string_ref const& prefix)
-        : part_number(part_number), prefix(prefix.begin(), prefix.end())
+    external_ref(size_t part_number, string_ref const& prefix, segment_manager* mgr)
+        : part_number(part_number)
+        , prefix(prefix.begin(), prefix.end(), make_allocator<char>(mgr))
     {}
 
     size_t part_number;
-    cont::string prefix;
+    string prefix;
 };
 
 struct trie_node
 {
+    trie_node(segment_manager* mgr)
+        : children(make_allocator<child>(mgr))
+    {}
+
     struct child
         : public boost::totally_ordered<child>
     {
         typedef boost::variant<ipc::offset_ptr<trie_node>,
             ipc::offset_ptr<external_ref>> ptr_t;
 
-        child(string_ref const& label)
-            : label(label.begin(), label.end()) {}
+        child(string_ref const& label, segment_manager* mgr)
+            : label(label.begin(), label.end(), make_allocator<char>(mgr)) {}
 
-        child(string_ref const& label, ptr_t const& ptr)
-            : label(label.begin(), label.end()), ptr(ptr) {}
+        child(string_ref const& label, ptr_t const& ptr, segment_manager* mgr)
+            : label(label.begin(), label.end(), make_allocator<char>(mgr)), ptr(ptr) {}
 
-        cont::string label;
+        string label;
         ptr_t ptr;
 
         bool operator < (child const& other) const
@@ -114,18 +130,27 @@ struct trie_node
         bool operator == (child const& other) const
         { return label == other.label; }
     };
-    cont::vector<child> children;
+    cont::vector<child, ipc::allocator<child, 
+        ipc::managed_mapped_file::segment_manager>> children;
 };
 
 struct trie_root
 {
-    trie_root(string_ref const& prefix)
-        : prefix(prefix.begin(), prefix.end()) {}
+    trie_root(string_ref const& prefix, segment_manager* mgr)
+        : root_node(mgr)
+        , prefix(prefix.begin(), prefix.end(), make_allocator<char>(mgr))
+    {}
 
     trie_node root_node;
-    cont::string prefix;
+    string prefix;
 };
 
+}
+
+template <>
+string_ref as_ref<shared::string>(shared::string const& s)
+{
+    return string_ref(s.begin().get(), s.size());
 }
 
 struct trie_part;
@@ -248,9 +273,18 @@ struct trie_part
         file_ = boost::none;
     }
 
+    shared::segment_manager* segment_manager() const
+    {
+        return file_->get_segment_manager();
+    }
+
     shared::trie_root* create_root(string_ref const& prefix)
     {
-        return file_->find_or_construct<shared::trie_root>(prefix.data(), std::nothrow)(prefix);
+        if (!can_allocate_more()) {
+            std::cout << "Part " << part_ << ": !can_allocate_more for root" << std::endl;
+            return nullptr;
+        }
+        return file_->find_or_construct<shared::trie_root>(prefix.data(), std::nothrow)(prefix, segment_manager());
     }
 
     shared::trie_root* get_root(string_ref const& prefix)
@@ -272,24 +306,26 @@ struct trie_part
 
     node_ptr_t create_node()
     {
-        if (!can_allocate_more())
+        if (!can_allocate_more()) {
             return node_ptr_t(nullptr, *deleter_);
+        }
         try {
             return node_ptr_t(
-                    new (&*allocator_->allocate_one()) shared::trie_node(),
+                    new (&*allocator_->allocate_one()) 
+                        shared::trie_node(allocator_->get_segment_manager()),
                     *deleter_);
         } catch (ipc::bad_alloc const&) {
+            std::cout << "Part " << part_ << ": ipc::bad_alloc" << std::endl;
             return node_ptr_t(nullptr, *deleter_);
         }
     }
 
     ref_ptr_t create_external_ref(string_ref const& prefix)
     {
-        if (!can_allocate_more())
-            return ref_ptr_t(nullptr, *ref_deleter_);
         try {
             return ref_ptr_t(
-                    new (&*ref_allocator_->allocate_one()) shared::external_ref(prefix),
+                    new (&*ref_allocator_->allocate_one()) 
+                        shared::external_ref(prefix, ref_allocator_->get_segment_manager()),
                     *ref_deleter_);
         } catch (ipc::bad_alloc const&) {
             return ref_ptr_t(nullptr, *ref_deleter_);
@@ -365,6 +401,13 @@ struct pimpl<trie>::implementation
     {
         trie_part::node_ptr_t node = source->create_node();
         while (!node) {
+            trie_part* from = load_part(this->current_part, true);
+            shared::trie_root* root = from->create_root(prefix);
+            if (!root) {
+                ++this->current_part;
+                std::cout << "Switching current part to " << this->current_part << std::endl;
+                continue;
+            }
             trie_part::ref_ptr_t ref = source->create_external_ref(prefix);
             if (!ref) {
                 // Houston, we have a problem
@@ -373,17 +416,11 @@ struct pimpl<trie>::implementation
                 throw std::logic_error(str(
                             boost::format("Cannot allocate an external ref for prefix %s") % prefix));
             }
-            trie_part* from = load_part(this->current_part, true);
-            shared::trie_root* root = from->create_root(prefix);
-            if (!root) {
-                ++this->current_part;
-                continue;
-            }
             ref->part_number = this->current_part;
             return trie_node_ref(from, &root->root_node, ref.release());
         }
         auto ptr = node.get();
-        return trie_node_ref(source, ptr.get(), ptr);
+        return trie_node_ref(source, ptr.get(), node.release());
     }
 
     trie_node_ref resolve_node(shared::trie_node::child::ptr_t const& p, trie_part* source)
@@ -413,11 +450,16 @@ struct pimpl<trie>::implementation
 
     trie_node_ref resolve_external_ref(shared::external_ref const& ref)
     {
-        trie_part* part = load_part(ref.part_number);
-        shared::trie_root* root = part->get_root(as_ref(ref.prefix));
+        return resolve_external_ref(ref.part_number, as_ref(ref.prefix));
+    }
+
+    trie_node_ref resolve_external_ref(size_t part_number, string_ref const& prefix)
+    {
+        trie_part* part = load_part(part_number);
+        shared::trie_root* root = part->get_root(prefix);
         if (!root)
             throw std::logic_error(str(boost::format("No root '%s' found in part %d")
-                        % ref.prefix % ref.part_number));
+                        % prefix % part_number));
         return trie_node_ref(part, &root->root_node);
     }
 
@@ -431,6 +473,7 @@ struct pimpl<trie>::implementation
             if (len > maxlen) {
                 maxlen = len;
                 match = &child;
+                assert(match->label.size() >= maxlen);
             }
         }
 #else
@@ -452,15 +495,16 @@ struct pimpl<trie>::implementation
         size_t maxlen;
         shared::trie_node::child* match;
         std::tie(match, maxlen) = find_longest_match(ref.node(), s);
+        assert(!match || match->label.size() >= maxlen);
 
         if (maxlen == 0) {
-            auto children = ref.node()->children;
+            auto& children = ref.node()->children;
             auto it = std::upper_bound(children.begin(), children.end(), s,
                     [](string_ref const& a, shared::trie_node::child const& b) {
                         return boost::range::lexicographical_compare(a, b.label);
                     });
 
-            children.insert(it, shared::trie_node::child(s));
+            children.insert(it, shared::trie_node::child(s, ref.part()->segment_manager()));
             return;
         }
 
@@ -477,13 +521,14 @@ struct pimpl<trie>::implementation
             else {
                 do_insert(resolve_node(match->ptr, ref.part()), full_str, start_pos + maxlen);
             }
+            return;
         }
         // Otherwise, split the node
-        string_ref matchRest = string_ref(match->label.begin(), match->label.size()).substr(maxlen);
+        string_ref matchRest = as_ref(match->label).substr(maxlen);
         trie_node_ref new_ref = create_node(ref.part(), prefix);
         assert(!(new_ref.ptr() == trie_node_ref::ptr_t()));
-        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match->ptr));
-        new_ref.node()->children.push_back(shared::trie_node::child(rest));
+        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match->ptr, ref.part()->segment_manager()));
+        new_ref.node()->children.push_back(shared::trie_node::child(rest, ref.part()->segment_manager()));
         boost::sort(new_ref.node()->children);
         match->label.erase(maxlen);
         match->ptr = new_ref.ptr();
@@ -499,7 +544,7 @@ struct pimpl<trie>::implementation
             return;
         }
 
-        auto children = ref.node()->children;
+        auto const& children = ref.node()->children;
         if (children.empty()) {
             return;
         }
@@ -541,7 +586,7 @@ struct pimpl<trie>::implementation
 
     implementation(fs::path const& part_dir)
         : part_dir(part_dir)
-        , part_grow_policy(new limited_grow_policy(1U << 28, 0.8, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
+        , part_grow_policy(new limited_grow_policy(1U << 28, 0.9, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
     {
         fs::create_directories(part_dir);
         // Will create it if missing
@@ -562,13 +607,13 @@ trie::trie(fs::path const& path, bool read_only)
 void trie::insert(boost::string_ref const& data)
 {
     implementation& impl = **this;
-    auto root = impl.resolve_external_ref(shared::external_ref(0, ""));
+    auto root = impl.resolve_external_ref(0, "");
     impl.do_insert(root, data, 0);
 }
 
 void trie::search_exact(boost::string_ref const& data, results_t& results)
 {
     implementation& impl = **this;
-    auto root = impl.resolve_external_ref(shared::external_ref(0, ""));
+    auto root = impl.resolve_external_ref(0, "");
     impl.do_search_exact(root, data, 0, results);
 }
