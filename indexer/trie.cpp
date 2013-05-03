@@ -307,6 +307,7 @@ struct trie_part
     node_ptr_t create_node()
     {
         if (!can_allocate_more()) {
+            std::cout << "Part " << part_ << ": !can_allocate_more for node" << std::endl;
             return node_ptr_t(nullptr, *deleter_);
         }
         try {
@@ -400,13 +401,16 @@ struct pimpl<trie>::implementation
     trie_node_ref create_node(trie_part* source, string_ref const& prefix)
     {
         trie_part::node_ptr_t node = source->create_node();
-        while (!node) {
-            trie_part* from = load_part(this->current_part, true);
-            shared::trie_root* root = from->create_root(prefix);
-            if (!root) {
-                ++this->current_part;
-                std::cout << "Switching current part to " << this->current_part << std::endl;
-                continue;
+        if (!node) {
+            shared::trie_root* root = nullptr;
+            trie_part* from = nullptr;
+            while (!root) {
+                from = load_part(this->current_part, true);
+                root = from->create_root(prefix);
+                if (!root) {
+                    ++this->current_part;
+                    std::cout << "Switching current part to " << this->current_part << std::endl;
+                }
             }
             trie_part::ref_ptr_t ref = source->create_external_ref(prefix);
             if (!ref) {
