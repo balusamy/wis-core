@@ -5,6 +5,8 @@
 #include <boost/format.hpp>
 #include <boost/units/detail/utility.hpp>
 
+#include "trie_layout.hpp"
+
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 namespace ipc = boost::interprocess;
@@ -22,6 +24,29 @@ std::string simplify(const char* name)
     return s;
 }
 
+namespace shared {
+
+std::ostream& operator<<(std::ostream& s, shared::external_ref const& ref)
+{
+    s << ref.part_number << ":" << ref.root_id;
+    return s;
+}
+
+}
+
+void print_trie(shared::trie_node* node, int level)
+{
+    std::string indent(level, ' ');
+    std::cout << indent << "Node address=" << node << " level=" << level << "\n";
+    for (int i = 0; i < node->children.size(); ++i) {
+        std::cout << indent << " Key " << (void*) node->children[i].label.data() << " : " << node->children[i].ptr << std::endl;
+        /*if (children[i].ptr) {
+            children[i].ptr->Print(level + 1);
+        }*/
+    }
+}
+
+
 int main(int argc, const char** argv)
 {
     fs::path input_file;
@@ -31,6 +56,7 @@ int main(int argc, const char** argv)
         ("help", "produce this help message")
         ("input-file", po::value<fs::path>(&input_file)->required(), "file to examine")
         ("verbose,v", "be very noisy")
+        ("root,r", po::value<size_t>(), "show specific root")
         ;
 
     po::positional_options_description pd;
@@ -57,6 +83,21 @@ int main(int argc, const char** argv)
 
     ipc::managed_mapped_file file(ipc::open_only, input_file.string().c_str());
 
+    if (vm.count("root")) {
+        size_t root_id = vm["root"].as<size_t>();
+        std::string root_str = str(boost::format("%X") % root_id);
+        shared::trie_root* ptr = file.find<shared::trie_root>(root_str.c_str()).first;
+        if (!ptr) {
+            std::cerr << "Root " << root_id << " (" << root_str << ") not found in part " << input_file << std::endl;
+            return EXIT_FAILURE;
+        }
+        std::cout << "Reporting info for " << input_file << ":" << std::endl;
+        std::cout << "    Segment start  " << boost::format("%p") % file.get_address() << std::endl;
+        std::cout << "    Segment end    " << boost::format("%p") % (void*)((char*)file.get_address() + file.get_size()) << std::endl;
+        print_trie(&ptr->root_node, 0);
+        return EXIT_SUCCESS;
+    }
+
     std::cout << "Reporting info for " << input_file << ":" << std::endl;
     std::cout << "    File size      " << report_size(fs::file_size(input_file)) << std::endl;
     std::cout << "    Segment size   " << report_size(file.get_size()) << std::endl;
@@ -64,6 +105,12 @@ int main(int argc, const char** argv)
     std::cout << "    Consistent     " << (file.check_sanity() ? "true" : "false") << std::endl;
     std::cout << "    Named objects  " << file.get_num_named_objects() << std::endl;
     std::cout << "    Unique objects " << file.get_num_unique_objects() << std::endl;
+
+    shared::part_root* part_root = file.find<shared::part_root>(ipc::unique_instance).first;
+    if (part_root) {
+        std::cout << "Part-specific info:" << std::endl;
+        std::cout << "    Roots count    " << part_root->next_root_id << std::endl;
+    }
 
     if (vm.count("verbose")) {
         typedef ipc::managed_mapped_file::const_named_iterator const_named_it;
