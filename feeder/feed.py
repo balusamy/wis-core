@@ -1,42 +1,69 @@
 #!/usr/bin/env python2
 
+from pymongo import MongoClient
+from bz2 import BZ2File
 import rpcz
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
-import time
+import parse_wiki
 
+
+DUMP_PATH = '/home/kirrun/Downloads/enwiki-20130403-pages-meta-current1.xml-p000000010p000010000.bz2'
+
+
+##
+# Initialising index-store
+
+ISERVER_ADDRESS = 'tcp://localhost:5555'
+STORE_NAME = 'idontcare'
 
 app = rpcz.Application()
-stub = index_rpcz.IndexBuilderService_Stub(
-        app.create_rpc_channel('tcp://localhost:5555'))
-
+iserver = index_rpcz.IndexBuilderService_Stub(
+            app.create_rpc_channel(ISERVER_ADDRESS))
 store = index_pb.StoreParameters()
-store.location = 'idontcare'
+store.location = STORE_NAME
 store.overwrite = True
-stub.createStore(store)
-#stub.openStore(store)
+iserver.createStore(store, deadline_ms=1)
 
-prefix = '_'*300
 
-total = 0
+##
+# Initialising MongoDB
+
+MONGO_ADDRESS = 'mongodb://localhost:27017'
+DB_NAME = 'wiki'
+
+mongo = MongoClient(MONGO_ADDRESS)
+db = mongo[DB_NAME]
+articles = db.articles
+articles.drop()
+articles.ensure_index([('sha1', 1)])
+
 
 try:
-    for j in range(1000):
-        print('j = {0}'.format(j))
-        k = j * 1000
-        data = index_pb.BuilderData()
-        for i in range(1000):
-            record = data.records.add()
+    with BZ2File(DUMP_PATH, 'r') as f:
+        for (title, sha1, text) in parse_wiki.articles(f):
 
-            record.key = prefix + 'ninebytes{0}'.format(k+i)
-            record.value = 'helloworld'
+            if text.startswith('#REDIRECT'): continue
 
-        a = time.time()
-        stub.feedData(data, deadline_ms=10)
-        b = time.time()
-        d = b-a
-        total += d
-        print('{0} ; {1}'.format(d, total))
+            print(title)
+
+            # Index
+            bdata = index_pb.BuilderData()
+            for i in range(1000):
+                record = bdata.records.add()
+
+                record.key = u'{0}{1}'.format(title, i)
+                record.value = 'helloworld'
+            iserver.feedData(bdata, deadline_ms=10)
+
+            # MongoDB
+            doc = {
+                'sha1': sha1,
+                'title': title,
+                'text': text,
+            }
+            articles.insert(doc)
 finally:
-    stub.closeStore(index_pb.Void())
+    mongo.close()
+    iserver.closeStore(index_pb.Void())
