@@ -30,7 +30,7 @@ int main(int argc, const char** argv)
     desc.add_options()
         ("help", "produce this help message")
         ("input-file", po::value<fs::path>(&input_file)->required(), "file to examine")
-        ("v,verbose", po::value<bool>(), "be very noisy")
+        ("verbose,v", "be very noisy")
         ;
 
     po::positional_options_description pd;
