@@ -1,6 +1,7 @@
 #include "trie.hpp"
 
 #include <memory>
+#include <iostream>
 
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
@@ -173,8 +174,8 @@ public:
 
 struct trie_part
 {
-    trie_part(fs::path const& part, grow_policy* policy)
-        : part_(part), policy_(policy)
+    trie_part(fs::path const& part, size_t part_number, grow_policy* policy)
+        : part_(part), part_number_(part_number), policy_(policy)
     {
         reopen();
     }
@@ -213,24 +214,10 @@ struct trie_part
         return file_->get_segment_manager();
     }
 
-    /*shared::trie_root* create_root()
+    size_t number() const
     {
-        if (!can_allocate_more()) {
-            std::cout << "Part " << part_ << ": !can_allocate_more for root" << std::endl;
-            return nullptr;
-        }
-        uint32_t root_id = root_->next_root_id++;
-        char buf[9]; // Should be safe for uint32_t
-        ::snprintf(buf, sizeof(buf), "%X", root_id);
-        return file_->find_or_construct<shared::trie_root>(buf, std::nothrow)(root_id, segment_manager());
+        return part_number_;
     }
-
-    shared::trie_root* get_root(uint32_t root_id)
-    {
-        char buf[9]; // Should be safe for uint32_t
-        ::snprintf(buf, sizeof(buf), "%X", root_id);
-        return file_->find<shared::trie_root>(buf).first;
-    }*/
 
     typedef ipc::cached_node_allocator<shared::trie_node,
         ipc::managed_mapped_file::segment_manager> node_allocator_t;
@@ -282,6 +269,7 @@ private:
     }
 
     fs::path part_;
+    size_t part_number_;
     grow_policy* policy_;
 
     bool needs_grow_;
@@ -349,6 +337,31 @@ struct pimpl<trie>::implementation
         }
         auto ptr = node.get();
         return trie_node_ref(source, ptr.get(), node.release());
+    }
+
+    shared::external_ref externalize_node(trie_node_ref::ptr_t const& p, trie_part* source)
+    {
+        struct externalize_visitor
+            : public boost::static_visitor<shared::external_ref>
+        {
+            externalize_visitor(implementation& impl, trie_part* source) 
+                : impl_(impl), source_(source) {}
+
+            shared::external_ref operator()(ipc::offset_ptr<shared::trie_node> const& p) const
+            {
+                return shared::external_ref(source_->number(), source_->stable_offset(p));
+            }
+
+            shared::external_ref operator()(shared::external_ref const& ref) const
+            {
+                return ref;
+            }
+
+        private:
+            trie_part* source_;
+            implementation& impl_;
+        };
+        return boost::apply_visitor(externalize_visitor(*this, source), p);
     }
 
     trie_node_ref resolve_node(shared::trie_node::child::ptr_t const& p, trie_part* source)
@@ -419,6 +432,7 @@ struct pimpl<trie>::implementation
         string_ref prefix = full_str.substr(0, start_pos);
         assert(ref.node() != nullptr);
         assert(ref.part() != nullptr);
+
         // Find the child with the longest matching prefix
         size_t maxlen;
         shared::trie_node::child* match;
@@ -456,7 +470,11 @@ struct pimpl<trie>::implementation
         trie_node_ref new_ref = create_node(ref.part());
         assert(!(new_ref.ptr() == trie_node_ref::ptr_t()));
         // FIXME: this is broken, because match->ptr may be external to new_ref.node()
-        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match->ptr, new_ref.part()->segment_manager()));
+        // Should be ok now?
+        auto match_ptr = match->ptr;
+        if (new_ref.part() != ref.part())
+            match_ptr = externalize_node(match_ptr, ref.part());
+        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match_ptr, new_ref.part()->segment_manager()));
         new_ref.node()->children.push_back(shared::trie_node::child(rest, new_ref.part()->segment_manager()));
         boost::sort(new_ref.node()->children);
         match->label.erase(maxlen);
@@ -507,7 +525,7 @@ struct pimpl<trie>::implementation
             std::string name = str(boost::format("%04u") % idx);
             if (!create_if_missing && !fs::exists(part_dir / name))
                 throw std::logic_error("Part " + name + " not found in " + part_dir.string());
-            std::unique_ptr<trie_part> part(new trie_part(part_dir / name, part_grow_policy.get()));
+            std::unique_ptr<trie_part> part(new trie_part(part_dir / name, idx, part_grow_policy.get()));
             parts[idx] = std::move(part);
         }
         return parts[idx].get();
