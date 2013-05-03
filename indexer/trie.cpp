@@ -443,8 +443,9 @@ struct pimpl<trie>::implementation
         string_ref matchRest = as_ref(match->label).substr(maxlen);
         trie_node_ref new_ref = create_node(ref.part());
         assert(!(new_ref.ptr() == trie_node_ref::ptr_t()));
-        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match->ptr, ref.part()->segment_manager()));
-        new_ref.node()->children.push_back(shared::trie_node::child(rest, ref.part()->segment_manager()));
+        // FIXME: this is broken, because match->ptr may be external to new_ref.node()
+        new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match->ptr, new_ref.part()->segment_manager()));
+        new_ref.node()->children.push_back(shared::trie_node::child(rest, new_ref.part()->segment_manager()));
         boost::sort(new_ref.node()->children);
         match->label.erase(maxlen);
         match->ptr = new_ref.ptr();
