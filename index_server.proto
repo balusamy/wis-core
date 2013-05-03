@@ -55,6 +55,7 @@ message BuilderProgress {
 service IndexBuilderService {
   rpc createStore(StoreParameters) returns (Void);
   rpc openStore(StoreParameters) returns (Void);
+  rpc closeStore(Void) returns (Void);
   rpc feedData(BuilderData) returns (Void);
   rpc buildIndex(Void) returns (Void);
   rpc getProgress(Void) returns (BuilderProgress);

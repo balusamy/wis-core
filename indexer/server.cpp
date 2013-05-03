@@ -90,6 +90,18 @@ struct pimpl<indexer::IndexBuilder>::implementation
         this->store_root = location;
     }
 
+    void do_close_store() {
+        if (!this->index) {
+            BOOST_THROW_EXCEPTION(common_exception()
+                    << errinfo_rpc_code(::rpc_error::INVALID_STORE)
+                    << errinfo_message("Store is not open")
+                );
+        }
+        this->index.reset();
+        this->format.Clear();
+        this->store_root = "";
+    }
+
     fs::path store_root;
     indexer::IndexFormat format;
     std::unique_ptr<indexer::index> index;
@@ -109,7 +121,7 @@ void IndexBuilder::createStore(const StoreParameters& request, rpcz::reply<Void>
 {
     implementation& impl = **this;
     try {
-        std::cout << "Got request: '" << request.DebugString() << "'" << std::endl;
+        std::cout << "Got createStore request: '" << request.DebugString() << "'" << std::endl;
 
         impl.do_create_store(request);
         impl.do_open_store(request);
@@ -122,9 +134,20 @@ void IndexBuilder::openStore(const StoreParameters& request, rpcz::reply<Void> r
 {
     implementation& impl = **this;
     try {
-        std::cout << "Got request: '" << request.DebugString() << "'" << std::endl;
+        std::cout << "Got openStore request: '" << request.DebugString() << "'" << std::endl;
 
         impl.do_open_store(request);
+
+    } RPC_REPORT_EXCEPTIONS(reply)
+    reply.send(Void());
+}
+
+void IndexBuilder::closeStore(const Void& request, rpcz::reply<Void> reply)
+{
+    implementation& impl = **this;
+    try {
+        std::cout << "Got closeStore request: '" << request.DebugString() << "'" << std::endl;
+        impl.do_close_store();
 
     } RPC_REPORT_EXCEPTIONS(reply)
     reply.send(Void());
