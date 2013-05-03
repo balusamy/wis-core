@@ -13,6 +13,7 @@ stub = index_rpcz.IndexBuilderService_Stub(
 
 store = index_pb.StoreParameters()
 store.location = 'idontcare'
+store.overwrite = True
 stub.createStore(store)
 #stub.openStore(store)
 
@@ -20,19 +21,22 @@ prefix = '_'*300
 
 total = 0
 
-for j in range(1000):
-    print('j = {0}'.format(j))
-    k = j * 1000
-    data = index_pb.BuilderData()
-    for i in range(1000):
-        record = data.records.add()
+try:
+    for j in range(1000):
+        print('j = {0}'.format(j))
+        k = j * 1000
+        data = index_pb.BuilderData()
+        for i in range(1000):
+            record = data.records.add()
 
-        record.key = prefix + 'ninebytes{0}'.format(k+i)
-        record.value = 'helloworld'
+            record.key = prefix + 'ninebytes{0}'.format(k+i)
+            record.value = 'helloworld'
 
-    a = time.time()
-    stub.feedData(data, deadline_ms=1000)
-    b = time.time()
-    d = b-a
-    total += d
-    print('{0} ; {1}'.format(d, total))
+        a = time.time()
+        stub.feedData(data, deadline_ms=10)
+        b = time.time()
+        d = b-a
+        total += d
+        print('{0} ; {1}'.format(d, total))
+finally:
+    stub.closeStore(index_pb.Void())
