@@ -187,10 +187,18 @@ struct trie_part
     {
         close();
 
+
+        bool should_init = !fs::exists(part_);
+
         file_ = boost::in_place(ipc::open_or_create, part_.string().c_str(), policy_->initial_size());
         allocator_ = boost::in_place(file_->get_segment_manager());
         deleter_ = boost::in_place(&*allocator_);
         root_ = file_->find_or_construct<shared::part_root>(ipc::unique_instance)();
+
+        if (should_init) {
+            // Horrible hack to keep allocator alive indefinitely
+            allocator_->get_node_pool()->inc_ref_count();
+        }
     }
 
     void close()
