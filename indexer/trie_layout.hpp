@@ -17,6 +17,7 @@ namespace cont = ::boost::container;
 namespace ipc = ::boost::interprocess;
 
 typedef ipc::managed_mapped_file::segment_manager segment_manager;
+typedef ipc::managed_mapped_file::handle_t handle;
 typedef cont::basic_string<char, std::char_traits<char>,
     ipc::allocator<char, segment_manager>> string;
 
@@ -29,22 +30,18 @@ ipc::allocator<T, segment_manager> make_allocator(segment_manager* mgr)
 struct external_ref
     : public boost::equality_comparable<external_ref>
 {
-    external_ref(uint32_t root_id)
-        : root_id(root_id)
-    {}
-
-    external_ref(uint32_t part_number, uint32_t root_id)
-        : part_number(part_number), root_id(root_id)
+    external_ref(uint32_t part_number, uint32_t offset)
+        : part_number(part_number), offset(offset)
     {}
 
     bool operator == (external_ref const& other) const
     { 
         return part_number == other.part_number &&
-            root_id == other.root_id;
+            offset == other.offset;
     }
 
     uint32_t part_number;
-    uint32_t root_id;
+    uint32_t offset;
 };
 
 struct trie_node
@@ -78,23 +75,12 @@ struct trie_node
         ipc::managed_mapped_file::segment_manager>> children;
 };
 
-struct trie_root
-{
-    trie_root(uint32_t root_id, segment_manager* mgr)
-        : root_node(mgr)
-        , root_id(root_id)
-    {}
-
-    trie_node root_node;
-    uint32_t root_id;
-};
-
 struct part_root
 {
     part_root()
     {}
 
-    uint32_t next_root_id;
+    uint32_t nodes_count;
 };
 
 }

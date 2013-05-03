@@ -17,6 +17,7 @@
 #include <boost/interprocess/allocators/cached_node_allocator.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/format.hpp>
+#include <boost/filesystem/fstream.hpp>
 
 #include "trie_layout.hpp"
 
@@ -187,7 +188,6 @@ struct trie_part
     {
         close();
 
-
         bool should_init = !fs::exists(part_);
 
         file_ = boost::in_place(ipc::open_or_create, part_.string().c_str(), policy_->initial_size());
@@ -213,7 +213,7 @@ struct trie_part
         return file_->get_segment_manager();
     }
 
-    shared::trie_root* create_root()
+    /*shared::trie_root* create_root()
     {
         if (!can_allocate_more()) {
             std::cout << "Part " << part_ << ": !can_allocate_more for root" << std::endl;
@@ -230,7 +230,7 @@ struct trie_part
         char buf[9]; // Should be safe for uint32_t
         ::snprintf(buf, sizeof(buf), "%X", root_id);
         return file_->find<shared::trie_root>(buf).first;
-    }
+    }*/
 
     typedef ipc::cached_node_allocator<shared::trie_node,
         ipc::managed_mapped_file::segment_manager> node_allocator_t;
@@ -244,14 +244,27 @@ struct trie_part
             return node_ptr_t(nullptr, *deleter_);
         }
         try {
+            ++root_->nodes_count;
             return node_ptr_t(
                     new (&*allocator_->allocate_one()) 
                         shared::trie_node(allocator_->get_segment_manager()),
                     *deleter_);
         } catch (ipc::bad_alloc const&) {
+            --root_->nodes_count;
             std::cout << "Part " << part_ << ": ipc::bad_alloc" << std::endl;
             return node_ptr_t(nullptr, *deleter_);
         }
+    }
+
+    shared::trie_node* get_node(uint32_t offset)
+    {
+        return static_cast<shared::trie_node*>(file_->get_address_from_handle(offset));
+    }
+
+    template <typename T>
+    uint32_t stable_offset(ipc::offset_ptr<T> const& p)
+    {
+        return file_->get_handle_from_address(p.get());
     }
 
 private:
@@ -322,18 +335,17 @@ struct pimpl<trie>::implementation
     {
         trie_part::node_ptr_t node = source->create_node();
         if (!node) {
-            shared::trie_root* root = nullptr;
             trie_part* from = nullptr;
-            while (!root) {
+            while (!node) {
                 from = load_part(this->current_part, true);
-                root = from->create_root();
-                if (!root) {
+                node = from->create_node();
+                if (!node) {
                     ++this->current_part;
                     std::cout << "Switching current part to " << this->current_part << std::endl;
                 }
             }
-            shared::external_ref ref(this->current_part, root->root_id);
-            return trie_node_ref(from, &root->root_node, ref);
+            shared::external_ref ref(this->current_part, from->stable_offset(node.get()));
+            return trie_node_ref(from, node.release().get(), ref);
         }
         auto ptr = node.get();
         return trie_node_ref(source, ptr.get(), node.release());
@@ -366,17 +378,17 @@ struct pimpl<trie>::implementation
 
     trie_node_ref resolve_external_ref(shared::external_ref const& ref)
     {
-        return resolve_external_ref(ref.part_number, ref.root_id);
+        return resolve_external_ref(ref.part_number, ref.offset);
     }
 
-    trie_node_ref resolve_external_ref(size_t part_number, uint32_t root_id)
+    trie_node_ref resolve_external_ref(size_t part_number, uint32_t offset)
     {
         trie_part* part = load_part(part_number);
-        shared::trie_root* root = part->get_root(root_id);
-        if (!root)
-            throw std::logic_error(str(boost::format("No root '%X' found in part %d")
-                        % root_id % part_number));
-        return trie_node_ref(part, &root->root_node);
+        shared::trie_node* node = part->get_node(offset);
+        if (!node)
+            throw std::logic_error(str(boost::format("No node @%X found in part %d")
+                        % offset % part_number));
+        return trie_node_ref(part, node);
     }
 
     std::pair<shared::trie_node::child*, size_t> find_longest_match(shared::trie_node* node, string_ref const& s)
@@ -501,21 +513,48 @@ struct pimpl<trie>::implementation
         return parts[idx].get();
     }
 
+    shared::external_ref load_ref(fs::path const& path)
+    {
+        fs::ifstream file(path);
+        shared::external_ref result(0, 0);
+        char delimiter;
+        file >> result.part_number >> delimiter >> result.offset;
+        if (!file.good())
+            throw std::logic_error("Cannot read ref " + path.string());
+        return result;
+    }
+
+    void save_ref(fs::path const& path, shared::external_ref const& ref)
+    {
+        fs::ofstream file(path);
+        file << ref.part_number << ":" << ref.offset << std::endl;
+        file.close();
+        if (!file.good())
+            throw std::logic_error("Cannot write ref " + path.string());
+    }
+
     implementation(fs::path const& part_dir)
         : part_dir(part_dir)
         , part_grow_policy(new limited_grow_policy(1U << 28, 0.9, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
+        , head(0, 0)
     {
         fs::create_directories(part_dir);
         // TODO: implement real initialization step
-        auto part = load_part(0, true);
-        if (part->get_root(0) == nullptr) {
-            part->create_root();
+        fs::path head_path = part_dir / "HEAD";
+        if (!fs::exists(head_path)) {
+            auto part = load_part(0, true);
+            auto node = part->create_node();
+            head = shared::external_ref(0, part->stable_offset(node.release()));
+            save_ref(head_path, head);
+        } else {
+            head = load_ref(head_path);
         }
     }
 
     fs::path part_dir;
     std::unique_ptr<grow_policy> part_grow_policy;
     size_t current_part;
+    shared::external_ref head;
     boost::unordered_map<size_t, std::unique_ptr<trie_part>> parts;
 };
 
@@ -527,13 +566,13 @@ trie::trie(fs::path const& path, bool read_only)
 void trie::insert(boost::string_ref const& data)
 {
     implementation& impl = **this;
-    auto root = impl.resolve_external_ref(0, 0);
+    auto root = impl.resolve_external_ref(impl.head);
     impl.do_insert(root, data, 0);
 }
 
 void trie::search_exact(boost::string_ref const& data, results_t& results)
 {
     implementation& impl = **this;
-    auto root = impl.resolve_external_ref(0, 0);
+    auto root = impl.resolve_external_ref(impl.head);
     impl.do_search_exact(root, data, 0, results);
 }
