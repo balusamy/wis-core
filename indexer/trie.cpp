@@ -15,7 +15,6 @@
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/allocators/node_allocator.hpp>
-#include <boost/interprocess/allocators/cached_node_allocator.hpp>
 #include <boost/interprocess/allocators/cached_adaptive_pool.hpp>
 #include <boost/interprocess/allocators/adaptive_pool.hpp>
 #include <boost/unordered_map.hpp>
@@ -222,7 +221,7 @@ struct trie_part
         return part_number_;
     }
 
-    typedef ipc::cached_node_allocator<shared::trie_node,
+    typedef ipc::cached_adaptive_pool<shared::trie_node,
         ipc::managed_mapped_file::segment_manager> node_allocator_t;
     typedef stateful_deleter<shared::trie_node,
         node_allocator_t> node_deleter_t;
@@ -248,25 +247,14 @@ struct trie_part
 
     void delete_node(shared::trie_node* node)
     {
-        auto before = file_->get_free_memory();
         --root_->nodes_count;
         node->~trie_node();
         allocator_->deallocate_one(node);
-        //allocator_->deallocate_free_chunks();
-        //root_->freed_mem = node_allocator_t::node_pool<0>::get(allocator_->get_node_pool())->num_free_nodes();
-        //file_->get_segment_manager()->shrink_to_fit();
-        auto after = file_->get_free_memory();
-        root_->freed_mem += (before > after) ? before - after : 0;
     }
 
     shared::trie_node* get_node(uint32_t offset)
     {
         return static_cast<shared::trie_node*>(file_->get_address_from_handle(offset));
-    }
-
-    void on_leaf_insert()
-    {
-        ++root_->leaves_count;
     }
 
     template <typename T>
@@ -346,8 +334,6 @@ private:
     shared::trie_node* node_;
     ptr_t ptr_;
 };
-
-size_t g_part_num = 0;
 
 template <>
 struct pimpl<trie>::implementation
@@ -484,7 +470,6 @@ struct pimpl<trie>::implementation
                 trie_node_ref new_ref = create_node(ref.part());
                 assert(!(new_ref.ptr() == trie_node_ref::ptr_t()));
                 assert(new_ref.part() != ref.part());
-                g_part_num = new_ref.part()->number();
 
                 auto& children = new_ref.node()->children;
                 // Copy everything explicitly, with right allocators
@@ -493,12 +478,13 @@ struct pimpl<trie>::implementation
                     children.push_back(shared::trie_node::child(as_ref(child.label), ptr, 
                                 new_ref.part()->segment_manager()));
                 }
+                // TODO: simplify/optimize
                 auto it = std::upper_bound(children.begin(), children.end(), s,
                         [](string_ref const& a, shared::trie_node::child const& b) {
                             return boost::range::lexicographical_compare(a, b.label);
                         });
                 children.insert(it, shared::trie_node::child(s, new_ref.part()->segment_manager()));
-                new_ref.part()->on_leaf_insert();
+
                 ref.part()->delete_node(ref.node());
                 return new_ref;
             } else {
@@ -509,7 +495,6 @@ struct pimpl<trie>::implementation
                         });
 
                 children.insert(it, shared::trie_node::child(s, ref.part()->segment_manager()));
-                ref.part()->on_leaf_insert();
                 return boost::none;
             }
         }
@@ -527,7 +512,6 @@ struct pimpl<trie>::implementation
             else {
                 auto new_ref = do_insert(resolve_node(match->ptr, ref.part()), full_str, start_pos + maxlen);
                 if (new_ref) {
-                    ref.part()->on_leaf_insert();
                     match->ptr = new_ref->ptr();
                 }
             }
@@ -537,13 +521,12 @@ struct pimpl<trie>::implementation
         string_ref matchRest = as_ref(match->label).substr(maxlen);
         trie_node_ref new_ref = create_node(ref.part());
         assert(!(new_ref.ptr() == trie_node_ref::ptr_t()));
-        g_part_num = new_ref.part()->number();
 
         auto match_ptr = normalize_ptr(match->ptr, ref.part(), new_ref.part());
         new_ref.node()->children.push_back(shared::trie_node::child(matchRest, match_ptr, new_ref.part()->segment_manager()));
         new_ref.node()->children.push_back(shared::trie_node::child(rest, new_ref.part()->segment_manager()));
-        new_ref.part()->on_leaf_insert();
         boost::sort(new_ref.node()->children);
+
         match->label.erase(maxlen);
         match->ptr = new_ref.ptr();
         return boost::none;
@@ -657,9 +640,8 @@ void trie::insert(boost::string_ref const& data)
     auto new_head = impl.do_insert(root, data, 0);
     if (new_head) {
         auto part = new_head->part();
-        impl.head = shared::external_ref(part->number(), 
+        impl.head = shared::external_ref(part->number(),
                 part->stable_offset(new_head->node()));
-        //impl.head = impl.externalize_node(new_head->ptr(), root.part());
         impl.save_ref(impl.part_dir / "HEAD", impl.head);
     }
 }
