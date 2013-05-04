@@ -169,7 +169,7 @@ int main(int argc, const char** argv)
     std::cout << "    File size      " << report_size(fs::file_size(input_file)) << std::endl;
     std::cout << "    Segment size   " << report_size(file.get_size()) << std::endl;
     std::cout << "    Free memory    " << report_size(file.get_free_memory()) << std::endl;
-    std::cout << "    Consistent     " << (file.check_sanity() ? "true" : "false") << std::endl;
+    //std::cout << "    Consistent     " << (file.check_sanity() ? "true" : "false") << std::endl;
     std::cout << "    Named objects  " << file.get_num_named_objects() << std::endl;
     std::cout << "    Unique objects " << file.get_num_unique_objects() << std::endl;
 
