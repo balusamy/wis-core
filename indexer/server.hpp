@@ -5,6 +5,8 @@
 #include "index_server.rpcz.h"
 #include "pimpl/pimpl.h"
 
+#include "store_manager.hpp"
+
 namespace indexer {
 
 struct IndexBuilder
@@ -12,7 +14,7 @@ struct IndexBuilder
     , public boost::noncopyable
     , private pimpl<IndexBuilder>::pointer_semantics
 {
-    IndexBuilder();
+    IndexBuilder(boost::shared_ptr<store_manager> const& store_mgr);
     virtual ~IndexBuilder();
 
 private:

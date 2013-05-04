@@ -20,6 +20,7 @@ PROTOBUF_GENERATE_RPCZ(INDEX_RPCZ_SRCS INDEX_RPCZ_HDRS ../index_server.proto)
 set(index_server_src
     main.cpp
     server.cpp
+    store_manager.cpp
     stagedb.cpp
     index.cpp
     trie.cpp
