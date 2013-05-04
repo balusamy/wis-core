@@ -39,7 +39,7 @@ if __name__ == '__main__':
     index = index_server(args.server, args.index)
     result = index.query(unicode(args.query, "UTF-8"), args.mistakes, args.timeout)
     if result.HasField('exact_total'):
-        print "Total result size: {0}\n".format(result.exact_total)
+        print "Total results: {0}".format(result.exact_total)
     for i, record in enumerate(result.values):
         print "Result #{0}: {1} = {2}".format(i, record.key.encode("UTF-8"), record.value) 
     print "Done"

@@ -52,6 +52,7 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
         ::indexer::index::results_t results;
         index->search(request.word(), request.maxcorrections(), results);
         QueryResult pb_results;
+        pb_results.set_exact_total(results.size());
         for (std::string const& result : results) {
             IndexRecord* record = pb_results.add_values();
             std::cout << "  result: " << result << std::endl;
