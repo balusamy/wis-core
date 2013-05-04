@@ -58,8 +58,8 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
             IndexRecord* record = pb_results.add_values();
             std::cout << "  result: " << result << std::endl;
             record->set_key(result);
-            // TODO: implement value_db
-            record->set_value(db->get(result));
+            std::string const& s = db->get(result);
+            record->mutable_value()->ParseFromString(s);
         }
         reply.send(pb_results);
     } RPC_REPORT_EXCEPTIONS(reply)

@@ -71,9 +71,11 @@ void IndexBuilder::feedData(const BuilderData& request, rpcz::reply<Void> reply)
         //std::cout << "Feeding " << request.records_size() << " records" << std::endl;
         auto index = impl.store->index();
         auto db = impl.store->db();
+        std::string value_str;
         for (IndexRecord const& rec : request.records()) {
             index->insert(rec.key());
-            db->append(rec.key(), rec.value());
+            rec.value().SerializeToString(&value_str);
+            db->append(rec.key(), value_str);
         }
         db->commit();
     } RPC_REPORT_EXCEPTIONS(reply)
