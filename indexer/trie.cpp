@@ -607,7 +607,7 @@ struct pimpl<trie>::implementation
 
     implementation(fs::path const& part_dir)
         : part_dir(part_dir)
-        , part_grow_policy(new limited_grow_policy(1U << 28, 0.5, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
+        , part_grow_policy(new limited_grow_policy(1U << 28, 0.04, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
         , current_part(0)
         , head(0, 0)
     {
