@@ -39,11 +39,15 @@ iserver.createStore(store, deadline_ms=1)
 ##
 # Initialising MongoDB
 
-MONGO_ADDRESS = 'mongodb://localhost:27017'
-DB_NAME = 'wiki'
+with open('mongo.cred', 'rt') as f:
+    MONGO_HOST = f.readline().strip()
+    MONGO_DB   = f.readline().strip()
+    MONGO_USER = f.readline().strip()
+    MONGO_PASS = f.readline().strip()
+MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
 
 mongo = MongoClient(MONGO_ADDRESS)
-db = mongo[DB_NAME]
+db = mongo[MONGO_DB]
 articles = db.articles
 articles.drop()
 articles.ensure_index([('sha1', 1)])
