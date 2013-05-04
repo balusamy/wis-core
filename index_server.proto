@@ -40,7 +40,7 @@ message StoreParameters {
 }
 
 message IndexValues {
-  repeated string parts = 1;
+  repeated bytes parts = 1;
 }
 
 message IndexRecord {

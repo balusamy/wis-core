@@ -102,7 +102,7 @@ try:
             for w, ps in postings.items():
                 record = bdata.records.add()
                 record.key = w
-                record.value = cPickle.dumps(ps)
+                record.value.parts.extend(map(lambda p: cPickle.dumps(p), ps))
 
             t2 = time()
 
