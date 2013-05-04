@@ -16,6 +16,11 @@ struct common_exception
 
 namespace rpc_error {
     static const int UNKNOWN_ERROR = 0xDEAD;
+
+    static const int STORE_ALREADY_EXISTS = 1;
+    static const int INVALID_STORE = 2;
+    static const int STORE_NOT_FOUND = 3;
+    static const int OPERATION_NOT_SUPPORTED = 4;
 }
 
 #define RPC_REPORT_EXCEPTIONS(reply) \

@@ -21,6 +21,7 @@ set(index_server_src
     main.cpp
     store_manager.cpp
     index_builder.cpp
+    index_search.cpp
     stagedb.cpp
     index.cpp
     trie.cpp

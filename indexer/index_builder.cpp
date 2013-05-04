@@ -1,29 +1,12 @@
 #include "index_builder.hpp"
 #include <iostream>
 #include <boost/filesystem.hpp>
-#include <boost/filesystem/fstream.hpp>
 #include <boost/format.hpp>
-#include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <leveldb/db.h>
 
 #include "exceptions.hpp"
 #include "index.hpp"
 
 namespace fs = boost::filesystem;
-namespace io = boost::iostreams;
-
-namespace rpc_error {
-static const int STORE_ALREADY_EXISTS = 1;
-static const int INVALID_STORE = 2;
-static const int STORE_NOT_FOUND = 3;
-}
-
-namespace indexer {
-
-static const int STORE_FORMAT = 1;
-
-}
 
 template <>
 struct pimpl<indexer::IndexBuilder>::implementation

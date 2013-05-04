@@ -20,7 +20,7 @@ message QueryOptions {
 message WordQuery {
   required QueryOptions options = 1;
   required string word = 2;
-  optional int32 maxCorrections = 3;
+  optional int32 maxCorrections = 3 [default = 0];
 }
 
 message QueryResult {

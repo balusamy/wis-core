@@ -13,7 +13,10 @@ struct index
 {
     index(boost::filesystem::path const& path);
 
+    typedef std::vector<std::string> results_t;
+
     void insert(boost::string_ref const& data);
+    void search(boost::string_ref const& data, size_t k, results_t& results);
 };
 
 }

@@ -15,9 +15,6 @@ namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 
 namespace rpc_error {
-static const int STORE_ALREADY_EXISTS = 1;
-static const int INVALID_STORE = 2;
-static const int STORE_NOT_FOUND = 3;
 }
 
 namespace indexer {
