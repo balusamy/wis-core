@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import argparse
 from bz2 import BZ2File
 from collections import Counter, defaultdict
 import cPickle
@@ -17,8 +18,11 @@ import parse_wiki
 from utils import grouper
 
 
-DUMP_PATH = '/home/kirrun/Downloads/enwiki-20130403-pages-meta-current1.xml-p000000010p000010000.bz2'
-ARTICLES_PER_ROUND = 50
+parser = argparse.ArgumentParser(description='Populate index databases.')
+parser.add_argument('dumpfile', help='dump-file path')
+parser.add_argument('-m', '--mongocred', default='mongo.cred', help='path to MongoDB credentials', metavar='FILE')
+parser.add_argument('-r', '--round', type=int, default=50, help='number of articles to process during one round', metavar='NUMBER')
+args = parser.parse_args()
 
 
 ##
@@ -39,7 +43,7 @@ iserver.createStore(store, deadline_ms=1)
 ##
 # Initialising MongoDB
 
-with open('mongo.cred', 'rt') as f:
+with open(args.mongocred, 'rt') as f:
     MONGO_HOST = f.readline().strip()
     MONGO_DB   = f.readline().strip()
     MONGO_USER = f.readline().strip()
@@ -54,7 +58,7 @@ articles.ensure_index([('sha1', 1)])
 
 
 try:
-    with BZ2File(DUMP_PATH, 'r') as f:
+    with BZ2File(args.dumpfile, 'r') as f:
         articles_count = 0
         token_articles = Counter()
 
@@ -65,7 +69,7 @@ try:
         articles_count = 0
         this_round_count = 0
 
-        for docgroup in grouper(ARTICLES_PER_ROUND, parse_wiki.articles(f)):
+        for docgroup in grouper(args.round, parse_wiki.articles(f)):
 
             t1 = time()
 
