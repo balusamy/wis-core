@@ -7,15 +7,19 @@ from pymongo import MongoClient
 from bz2 import BZ2File
 import rpcz
 from time import time
+import cPickle
+from collections import Counter, defaultdict
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
 import parse_wiki
 from extract import unwiki
+from nlp import prepare
+from utils import grouper
 
 
 DUMP_PATH = '/home/kirrun/Downloads/enwiki-20130403-pages-meta-current1.xml-p000000010p000010000.bz2'
-STAT_REPORT = 10
+ARTICLES_PER_ROUND = 50
 
 
 ##
@@ -49,28 +53,56 @@ articles.ensure_index([('sha1', 1)])
 try:
     with BZ2File(DUMP_PATH, 'r') as f:
         articles_count = 0
+        token_articles = Counter()
 
         time_preproc = 0
         time_iserv = 0
         time_mongo = 0
         last_time = time()
+        articles_count = 0
+        this_round_count = 0
 
-        for (title, sha1, text) in parse_wiki.articles(f):
-
-            if not text: continue # wtf
-            if text.startswith('#REDIRECT'): continue
+        for docgroup in grouper(ARTICLES_PER_ROUND, parse_wiki.articles(f)):
 
             t1 = time()
 
-            text = unwiki(text)
-            text = text.split()
-
+            postings = defaultdict(lambda: [])
             bdata = index_pb.BuilderData()
-            for i, w in enumerate(text):
-                record = bdata.records.add()
+            docs = []
 
+            for doc in docgroup:
+                if not doc: break
+
+                (title, sha1, text) = doc
+
+                if not text: continue # wtf
+                if text.startswith('#REDIRECT'): continue
+
+
+                text = unwiki(text)
+                tokens = prepare(text)
+
+                if not tokens: continue
+
+                article_tokens = Counter(tokens)
+
+                for i, w in enumerate(tokens):
+                    token_articles[w] += 1
+                    postings[w] += (sha1, i)
+
+                docs.append({
+                    'sha1': sha1,
+                    'title': title,
+                    'text': tokens,
+                    'maxf': article_tokens.most_common(1)[0][1],
+                })
+
+            if not docs: continue
+
+            for w, ps in postings.items():
+                record = bdata.records.add()
                 record.key = w
-                record.value = str((sha1, i))
+                record.value = cPickle.dumps(ps)
 
             t2 = time()
 
@@ -80,32 +112,34 @@ try:
             t3 = time()
 
             # MongoDB
-            doc = {
-                'sha1': sha1,
-                'title': title,
-                'text': text,
-            }
-            articles.insert(doc)
+            articles.insert(docs)
 
             t4 = time()
 
-            articles_count += 1
+            this_round_count += len(docs)
 
             time_preproc += t2-t1
             time_iserv += t3-t2
             time_mongo += t4-t3
 
-            if articles_count % STAT_REPORT == 0:
-                print('preproc: {preproc:.6f}  iserv: {iserv:.6f}  mongo: {mongo:.6f}  // {count} articles'.format(
-                    count = articles_count,
-                    preproc = time_preproc / STAT_REPORT,
-                    iserv = time_iserv / STAT_REPORT,
-                    mongo = time_mongo / STAT_REPORT,
-                ))
-                sys.stdout.flush()
-                time_preproc = time_iserv = time_mongo = 0
-                print('{speed:.2f} articles/s'.format(speed=STAT_REPORT/(time()-last_time)))
-                last_time = time()
+
+            ##
+            # Reporting stats
+
+            new_total = articles_count + this_round_count
+            print('preproc: {preproc:.6f}  iserv: {iserv:.6f}  mongo: {mongo:.6f}  // +{new} articles (= {total} total)'.format(
+                preproc = time_preproc / this_round_count,
+                iserv = time_iserv / this_round_count,
+                mongo = time_mongo / this_round_count,
+                new = this_round_count,
+                total = new_total,
+            ))
+            print('{speed:.2f} articles/s'.format(speed=this_round_count/(time()-last_time)))
+
+            articles_count = new_total
+            this_round_count = 0
+            time_preproc = time_iserv = time_mongo = 0
+            last_time = time()
 finally:
     mongo.close()
     iserver.closeStore(index_pb.Void())
