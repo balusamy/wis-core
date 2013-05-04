@@ -234,10 +234,13 @@ struct trie_part
         }
         try {
             ++root_->nodes_count;
-            return node_ptr_t(
-                    new (&*allocator_->allocate_one()) 
+            node_ptr_t result(
+                    new (&*allocator_->allocate_one())
                         shared::trie_node(allocator_->get_segment_manager()),
                     *deleter_);
+            // HACK: preallocate some space in all nodes to reduce reallocations
+            result->children.reserve(10);
+            return result;
         } catch (ipc::bad_alloc const&) {
             --root_->nodes_count;
             std::cout << "Part " << part_ << ": ipc::bad_alloc" << std::endl;
@@ -395,7 +398,7 @@ struct pimpl<trie>::implementation
         struct resolve_visitor
             : public boost::static_visitor<trie_node_ref>
         {
-            resolve_visitor(implementation& impl, trie_part* source) 
+            resolve_visitor(implementation& impl, trie_part* source)
                 : impl_(impl), source_(source) {}
 
             trie_node_ref operator()(ipc::offset_ptr<shared::trie_node> const& p) const
