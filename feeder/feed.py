@@ -53,9 +53,11 @@ try:
         time_preproc = 0
         time_iserv = 0
         time_mongo = 0
+        last_time = time()
 
         for (title, sha1, text) in parse_wiki.articles(f):
 
+            if not text: continue # wtf
             if text.startswith('#REDIRECT'): continue
 
             t1 = time()
@@ -102,8 +104,8 @@ try:
                 ))
                 sys.stdout.flush()
                 time_preproc = time_iserv = time_mongo = 0
-except Exception as e:
-    print(e)
+                print('{speed:.2f} articles/s'.format(speed=STAT_REPORT/(time()-last_time)))
+                last_time = time()
 finally:
     mongo.close()
     iserver.closeStore(index_pb.Void())
