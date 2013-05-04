@@ -6,6 +6,7 @@
 #include "index_server.pb.h"
 #include "pimpl/pimpl.h"
 #include "index.hpp"
+#include "stagedb.hpp"
 
 namespace indexer {
 
@@ -18,6 +19,7 @@ struct store final
 
     boost::filesystem::path location() const;
     boost::shared_ptr< ::indexer::index> index() const;
+    boost::shared_ptr< ::stage_db> db() const;
 };
 
 struct store_manager final

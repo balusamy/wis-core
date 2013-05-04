@@ -49,6 +49,7 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
 
         std::cout << "Searching for '" << request.word() << "', k=" << request.maxcorrections() << std::endl;
         auto index = impl.store->index();
+        auto db = impl.store->db();
         ::indexer::index::results_t results;
         index->search(request.word(), request.maxcorrections(), results);
         QueryResult pb_results;
@@ -58,7 +59,7 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
             std::cout << "  result: " << result << std::endl;
             record->set_key(result);
             // TODO: implement value_db
-            record->set_value("");
+            record->set_value(db->get(result));
         }
         reply.send(pb_results);
     } RPC_REPORT_EXCEPTIONS(reply)
