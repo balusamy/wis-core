@@ -81,6 +81,8 @@ struct part_root
     {}
 
     uint32_t nodes_count;
+    uint32_t leaves_count;
+    uint64_t freed_mem;
 };
 
 }
