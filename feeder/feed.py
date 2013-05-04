@@ -13,7 +13,7 @@ from time import time
 from extract import unwiki
 import index_server_pb2 as index_pb
 import index_server_rpcz as index_rpcz
-from nlp import prepare
+from nlp import tokenise, normalise
 import parse_wiki
 from utils import grouper
 
@@ -88,20 +88,22 @@ try:
 
 
                 text = unwiki(text)
-                tokens = prepare(text)
+                all_tokens = tokenise(text)
+                tokens = normalise(all_tokens)
 
                 if not tokens: continue
 
-                article_tokens = Counter(tokens)
+                article_tokens = Counter()
 
-                for i, w in enumerate(tokens):
-                    token_articles[w] += 1
+                for i, w in tokens:
+                    article_tokens[w] += 1
                     postings[w] += (sha1, i)
+                token_articles.update(article_tokens)
 
                 docs.append({
                     'sha1': sha1,
                     'title': title,
-                    'text': tokens,
+                    'text': all_tokens,
                     'maxf': article_tokens.most_common(1)[0][1],
                 })
 

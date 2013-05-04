@@ -14,8 +14,11 @@ def has_char(w):
 def is_good_word(w):
     return len(w) > 2 and w not in stop and has_char(w)
 
-def prepare(text):
-    words = [w for s in sent_tokenize(text) for w in word_tokenize(s)]
-    words = filter(is_good_word, words)
-    words = [snowball.stem(w) for w in words]
+def tokenise(text):
+    return [w for s in sent_tokenize(text) for w in word_tokenize(s)]
+
+def normalise(words):
+    words = enumerate(words)
+    words = filter(lambda p: is_good_word(p[1]), words)
+    words = [(i, snowball.stem(w)) for i, w in words]
     return words
