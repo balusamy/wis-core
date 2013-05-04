@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse
 from bz2 import BZ2File
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict
 import cPickle
 from pymongo import MongoClient
 import rpcz
@@ -73,7 +73,7 @@ try:
 
             t1 = time()
 
-            postings = defaultdict(lambda: [])
+            postings = OrderedDict()
             bdata = index_pb.BuilderData()
             docs = []
 
@@ -97,7 +97,8 @@ try:
 
                 for i, w in tokens:
                     article_tokens[w] += 1
-                    postings[w] += (sha1, i)
+                    if w in postings: postings[w].append((sha1, i))
+                    else: postings[w] = [(sha1, i)]
                 token_articles.update(article_tokens)
 
                 docs.append({
@@ -112,7 +113,7 @@ try:
             for w, ps in postings.items():
                 record = bdata.records.add()
                 record.key = w
-                record.value.parts.extend(map(lambda p: cPickle.dumps(p), ps))
+                record.value.parts.extend(map(cPickle.dumps, ps))
 
             t2 = time()
 
