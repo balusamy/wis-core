@@ -645,6 +645,7 @@ void trie::insert(boost::string_ref const& data)
         auto part = new_head->part();
         impl.head = shared::external_ref(part->number(),
                 part->stable_offset(new_head->node()));
+        std::cout << "Moving HEAD to " << impl.head.part_number << ":" << impl.head.offset << std::endl;
         impl.save_ref(impl.part_dir / "HEAD", impl.head);
     }
 }
