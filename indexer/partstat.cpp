@@ -35,7 +35,7 @@ std::ostream& operator<<(std::ostream& s, shared::external_ref const& ref)
 
 }
 
-void print_trie(const void* base, shared::trie_node* node, int level, int maxlevel)
+void print_trie(const void* base, shared::trie_node* node, size_t level, size_t maxlevel)
 {
     if (level > maxlevel)
         return;
@@ -64,12 +64,14 @@ struct trie_stats
         , max_level(0)
         , external_refs_count(0)
         , total_label_size(0)
+        , leaves(0)
     {}
 
     size_t node_count;
     size_t max_level;
     size_t external_refs_count;
     size_t total_label_size;
+    size_t leaves;
     boost::unordered_map<size_t, size_t> refs_by_part;
 };
 
@@ -83,6 +85,8 @@ void collect_trie_stats(shared::trie_node* node, int level, trie_stats& stats) {
             shared::trie_node* child = boost::get<ipc::offset_ptr<shared::trie_node>>(ptr).get();
             if (child) {
                 collect_trie_stats(child, level + 1, stats);
+            } else {
+                ++stats.leaves;
             }
         } else {
             auto ref = boost::get<shared::external_ref const&>(ptr);
@@ -105,6 +109,7 @@ int main(int argc, const char** argv)
         ("root,r", po::value<size_t>(), "show specific root")
         ("level,l", po::value<size_t>()->default_value(SIZE_MAX), "only show levels below it")
         ("stats,s", "collect node stats")
+        ("test", "do not use")
         ;
 
     po::positional_options_description pd;
@@ -144,6 +149,7 @@ int main(int argc, const char** argv)
             collect_trie_stats(node, 1, stats);
             std::cout << "    Subtree size   " << stats.node_count << std::endl;
             std::cout << "    Subtree depth  " << stats.max_level << std::endl;
+            std::cout << "    Leaves count   " << stats.leaves << std::endl;
             std::cout << "    External refs  " << stats.external_refs_count << std::endl;
             std::cout << "    Total key data " << stats.total_label_size << std::endl;
             std::cout << "    Refs by part   ";
