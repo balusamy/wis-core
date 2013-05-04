@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 
-import sys
 from pymongo import MongoClient
 from bz2 import BZ2File
 import rpcz
@@ -73,8 +72,9 @@ try:
             for doc in docgroup:
                 if not doc: break
 
-                (title, sha1, text) = doc
+                (title, ns, sha1, text) = doc
 
+                if ns != '0': continue
                 if not text: continue # wtf
                 if text.startswith('#REDIRECT'): continue
 

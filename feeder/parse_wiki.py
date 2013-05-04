@@ -11,6 +11,7 @@ tag_title    = tag_ns('title')
 tag_revision = tag_ns('revision')
 tag_text     = tag_ns('text')
 tag_sha1     = tag_ns('sha1')
+tag_ns       = tag_ns('ns')
 
 
 def articles(stream):
@@ -21,8 +22,9 @@ def articles(stream):
         if event == 'end' and elem.tag == tag_page:
             title = elem.find(tag_title).text
             rev = elem.find(tag_revision)
+            ns = elem.find(tag_ns).text
             text = rev.find(tag_text).text
             sha1 = rev.find(tag_sha1).text
-            yield (title, sha1, text)
+            yield (title, ns, sha1, text)
 
             root.clear()
