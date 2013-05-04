@@ -2,18 +2,18 @@
 
 from __future__ import print_function
 
-from pymongo import MongoClient
 from bz2 import BZ2File
+from collections import Counter, defaultdict
+import cPickle
+from pymongo import MongoClient
 import rpcz
 from time import time
-import cPickle
-from collections import Counter, defaultdict
 
-import index_server_rpcz as index_rpcz
-import index_server_pb2 as index_pb
-import parse_wiki
 from extract import unwiki
+import index_server_pb2 as index_pb
+import index_server_rpcz as index_rpcz
 from nlp import prepare
+import parse_wiki
 from utils import grouper
 
 
