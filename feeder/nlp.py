@@ -22,3 +22,6 @@ def normalise(words):
     words = filter(lambda p: is_good_word(p[1]), words)
     words = [(i, snowball.stem(w)) for i, w in words]
     return words
+
+def stem(w):
+    return snowball.stem(w)
