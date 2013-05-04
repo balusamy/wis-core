@@ -1,6 +1,6 @@
 #include <rpcz/rpcz.hpp>
 #include "store_manager.hpp"
-#include "server.hpp"
+#include "index_builder.hpp"
 #include <boost/make_shared.hpp>
 
 int main() {

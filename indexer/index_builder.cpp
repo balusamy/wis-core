@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "index_builder.hpp"
 #include <iostream>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
