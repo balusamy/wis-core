@@ -63,6 +63,7 @@ if not args.disable_mongo:
     articles = db.articles
     if args.empty:
         articles.drop()
+        articles.ensure_index([('_id', 1), ('size', 1)]) # covering index to speed up size queries
 
     db.service.remove({'_id': 'avg_len'})
 
