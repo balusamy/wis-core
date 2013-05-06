@@ -58,7 +58,6 @@ if not args.disable_mongo:
     articles = db.articles
 
     articles.drop()
-    articles.ensure_index([('sha1', 1)])
     db.service.remove({'_id': 'avg_len'})
 
 
@@ -121,7 +120,7 @@ try:
                     else: postings[w] = [(sha1, i)]
 
                 docs.append({
-                    'sha1': sha1,
+                    '_id': sha1,
                     'title': title,
                     'text': all_tokens,
                     'maxf': article_tokens.most_common(1)[0][1],

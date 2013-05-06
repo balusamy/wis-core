@@ -84,7 +84,7 @@ def show_documents(docs, hili=lambda w:w):
 
     result = []
     for sha1, positions in docs.items():
-        doc = articles.find_one({'sha1': sha1})
+        doc = articles.find_one({'_id': sha1})
 
         if not doc:
           result.append(missing_doc)
