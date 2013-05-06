@@ -125,7 +125,7 @@ class Searcher(object):
         result = []
         for sha1, score in self.scores[:n]:
             positions = self.poslists[sha1]
-            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'url':1, 'text':1})
+            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1})
 
             tokens = doc['text']
 
@@ -165,7 +165,7 @@ class Searcher(object):
                     if depth == 0:
                         parts[-1].end = p
 
-            result.append({'title': doc['title'], 'url': '#',
+            result.append({'title': doc['title'],
                 'parts': [p.str() for p in parts]})
         self._TIME('render')
 
