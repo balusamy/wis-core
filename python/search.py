@@ -12,7 +12,7 @@ import time
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
-from nlp import normalise_drop
+from nlp import tokenise, normalise_drop
 from utils import merge_sorted
 
 
@@ -34,7 +34,7 @@ class IndexServer(object):
 
 
 class Searcher(object):
-    def __init__(self, keywords):
+    def __init__(self, query):
         k1 = 1.6
         b = 0.75
 
@@ -50,7 +50,9 @@ class Searcher(object):
         self.db = self.mongo[MONGO_DB]
 
 
-        keywords = set(normalise_drop(keywords))
+        keywords = set(normalise_drop(tokenise(query)))
+        if not keywords: raise NotEnoughEntropy()
+
         index = IndexServer('tcp://localhost:5555', 'enwiki')
 
         matched_docsets = []
@@ -139,6 +141,8 @@ class Searcher(object):
             self.timings[label] += time.time() - self._timer
         self._timer = time.time()
 
+class NotEnoughEntropy(ValueError):
+    pass
 
 
 if __name__ == '__main__':
