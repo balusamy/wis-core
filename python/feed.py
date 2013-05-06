@@ -57,7 +57,6 @@ if not args.disable_mongo:
     db = mongo[MONGO_DB]
     articles = db.articles
 
-    articles.drop()
     db.service.remove({'_id': 'avg_len'})
 
 
