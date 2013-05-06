@@ -24,6 +24,7 @@ parser.add_argument('-m', '--mongocred', default='mongo.cred', help='path to Mon
 parser.add_argument('-r', '--round', type=int, default=50, help='number of articles to process during one round', metavar='NUMBER')
 parser.add_argument('--disable-index', action='store_true', default=False, help='no not build index on the index server')
 parser.add_argument('--disable-mongo', action='store_true', default=False, help='no not store documents in MongoDB')
+parser.add_argument('--skip', type=int, default=0, help='skip this number of articles')
 args = parser.parse_args()
 
 
@@ -75,7 +76,11 @@ def update_avg_len():
 
 try:
     with BZ2File(args.dumpfile, 'r') as f:
-        articles_count = 0
+        parser = parse_wiki.articles(f)
+
+        skip = args.skip
+        for i in range(skip):
+            parser.next()
 
         time_preproc = 0
         time_iserv = 0
@@ -84,7 +89,7 @@ try:
         articles_count = 0
         this_round_count = 0
 
-        for docgroup in grouper(args.round, parse_wiki.articles(f)):
+        for docgroup in grouper(args.round, parser):
 
             t1 = time()
 
