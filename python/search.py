@@ -3,15 +3,16 @@
 from __future__ import print_function
 
 import argparse
-from collections import namedtuple, OrderedDict
+from collections import defaultdict, Counter
 import cPickle
-from nlp import stem
+from math import log
 from pymongo import MongoClient
 import rpcz
-from time import time
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
+from nlp import normalise_drop
+from utils import merge_sorted
 
 
 class IndexServer(object):
@@ -31,76 +32,99 @@ class IndexServer(object):
         return self.iserver.wordQuery(query, deadline_ms=timeout)
 
 
-DocPostings = namedtuple('DocPostings', ['postings', 'num_keywords',
-                                         'num_positions',
-                                         'query_time', 'proc_time'])
+class Searcher(object):
+    def __init__(self, keywords):
+        k1 = 1.6
+        b = 0.75
 
-def search(keyword):
-    keyword = stem(keyword)
-    index = IndexServer('tcp://localhost:5550', 'enwiki')
-
-    t1 = time()
-
-    res = index.query(keyword).values
-
-    t2 = time()
-
-    if not res: return None
-    count = len(res)
-    res = res[0]
-    postings = map(cPickle.loads, res.value.parts)
-
-    ps = OrderedDict()
-    for sha1, i in postings:
-        if sha1 in ps: ps[sha1].append(i)
-        else: ps[sha1] = [i]
-
-    t3 = time()
-
-    return DocPostings(ps, count, len(postings), t2-t1, t3-t2)
+        with open('mongo.cred', 'rt') as f:
+            MONGO_HOST = f.readline().strip()
+            MONGO_DB   = f.readline().strip()
+            MONGO_USER = f.readline().strip()
+            MONGO_PASS = f.readline().strip()
+        MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
+        self.mongo = MongoClient(MONGO_ADDRESS)
+        self.db = self.mongo[MONGO_DB]
 
 
-RenderedDocs = namedtuple('RenderedDocs', ['docs', 'render_time'])
+        keywords = normalise_drop(keywords)
+        index = IndexServer('tcp://localhost:5555', 'enwiki')
 
-def show_documents(docs, hili=lambda w:w):
-    if not docs: return None
+        matched_docsets = []
+        doc_poslists = defaultdict(lambda: [])
+        freq = defaultdict(lambda: Counter())
 
-    NUM_BEFORE = 5
-    NUM_AFTER = 5
+        for kw in keywords:
+            res = index.query(kw, max_mistakes=0).values
 
-    t1 = time()
+            if not res:
+                data = []
+            else:
+                data = res[0].value.parts
 
-    with open('mongo.cred', 'rt') as f:
-        MONGO_HOST = f.readline().strip()
-        MONGO_DB   = f.readline().strip()
-        MONGO_USER = f.readline().strip()
-        MONGO_PASS = f.readline().strip()
-    MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
-    mongo = MongoClient(MONGO_ADDRESS)
-    db = mongo[MONGO_DB]
-    articles = db.articles
+            docpostings = map(cPickle.loads, data)
 
-    missing_doc = {'title': '???', 'url': '#', 'parts': []}
+            matched_docs = set()
+            for (sha1, positions) in docpostings:
+                matched_docs.add(sha1)
+                doc_poslists[sha1].append(positions)
+                freq[kw][sha1] += len(positions)
+            matched_docsets.append(matched_docs)
 
-    result = []
-    for sha1, positions in docs.items():
-        doc = articles.find_one({'_id': sha1})
+        doc_count = {kw: len(freq[kw]) for kw in freq}
 
-        if not doc:
-          result.append(missing_doc)
-          continue
+        print(freq)
+        print(doc_count)
 
-        tokens = doc['text']
-        parts = []
-        for pos in positions:
-            ws = tokens[pos-NUM_BEFORE : pos] + [hili(tokens[pos])] + tokens[pos+1 : pos+NUM_AFTER]
-            parts.append(' '.join(ws))
+        docs = set.intersection(*matched_docsets) if matched_docsets else set()
+        self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
 
-        result.append({'title': doc['title'], 'url': '#', 'parts': parts})
+        # Here comes BM52 to save the world!
+        scores = []
+        N = self.N = self.db.articles.count()
+        avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
+        self.fetched = {}
+        for sha1 in docs:
+            score = 0
 
-    t2 = time()
+            doc = self.fetched[sha1] = self.db.articles.find_one({'_id': sha1})
+            if not doc:
+                del self.poslists[sha1]
+                continue
+            size = len(doc['text'])
 
-    return RenderedDocs(result, t2-t1)
+            for kw in keywords:
+                idf = log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))
+                m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
+                score += idf * m
+            scores.append((sha1, score))
+
+        self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
+        for sha1, s in self.scores:
+            t = self.fetched[sha1]['title']
+            print((t, s, sha1))
+
+
+    def show_documents(self, hili=lambda w:w):
+        if not self.scores: return None
+
+        NUM_BEFORE = 5
+        NUM_AFTER = 5
+
+        result = []
+        for sha1, score in self.scores:
+            positions = self.poslists[sha1]
+            doc = self.fetched[sha1]
+
+            tokens = doc['text']
+            parts = []
+            for pos in positions:
+                ws = tokens[pos-NUM_BEFORE : pos] + [hili(tokens[pos])] + tokens[pos+1 : pos+NUM_AFTER]
+                parts.append(' '.join(ws))
+
+            result.append({'title': doc['title'], 'url': '#', 'parts': parts})
+
+        return result
 
 
 if __name__ == '__main__':

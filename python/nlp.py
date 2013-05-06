@@ -23,5 +23,10 @@ def normalise(words):
     words = [(i, snowball.stem(w)) for i, w in words]
     return words
 
+def normalise_drop(words):
+    words = filter(is_good_word, words)
+    words = map(snowball.stem, words)
+    return words
+
 def stem(w):
     return snowball.stem(w)
