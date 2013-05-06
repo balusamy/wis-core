@@ -112,7 +112,7 @@ try:
 
                 if ns != '0': continue
                 if not text: continue # wtf
-                if text[:9].tolower() == ('#redirect'): continue
+                if text[:9].lower() == ('#redirect'): continue
 
 
                 text = unwiki(text)
