@@ -73,9 +73,6 @@ class Searcher(object):
 
         doc_count = {kw: len(freq[kw]) for kw in freq}
 
-        print(freq)
-        print(doc_count)
-
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
         self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
 
@@ -100,9 +97,6 @@ class Searcher(object):
             scores.append((sha1, score))
 
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
-        for sha1, s in self.scores:
-            t = self.fetched[sha1]['title']
-            print((t, s, sha1))
 
 
     def show_documents(self, hili=lambda w:w):
