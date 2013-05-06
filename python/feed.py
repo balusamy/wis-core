@@ -76,7 +76,6 @@ def update_avg_len():
 try:
     with BZ2File(args.dumpfile, 'r') as f:
         articles_count = 0
-        token_articles = Counter()
 
         time_preproc = 0
         time_iserv = 0
@@ -115,7 +114,6 @@ try:
                     article_tokens[w] += 1
                     if w in postings: postings[w].append((sha1, i))
                     else: postings[w] = [(sha1, i)]
-                token_articles.update(article_tokens.keys())
 
                 docs.append({
                     'sha1': sha1,
@@ -169,14 +167,6 @@ try:
             this_round_count = 0
             time_preproc = time_iserv = time_mongo = 0
             last_time = time()
-
-    if not args.disable_mongo:
-        print('Populating token_articles table')
-        t1 = time()
-        for w,c in token_articles.items():
-            db.token_articles.save({'_id': w, 'count': c})
-        t2 = time()
-        print('Done in {0:.1f} seconds.'.format(t2-t1))
 
 
         print('Recalculating service vars now...')
