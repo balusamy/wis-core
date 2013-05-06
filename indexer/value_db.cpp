@@ -7,10 +7,27 @@
 
 #include "exceptions.hpp"
 
+using boost::string_ref;
+
 template <>
 struct pimpl<indexer::value_db>::implementation
 {
-    mutable mongo::DBClientConnection db;
+    implementation(string_ref const& url)
+    {
+        std::string errmsg;
+        connection_str = mongo::ConnectionString::parse(url.data(), errmsg);
+        if (!connection_str.isValid())
+            BOOST_THROW_EXCEPTION(common_exception()
+                    << errinfo_message(errmsg));
+    }
+
+    std::unique_ptr<mongo::ScopedDbConnection> connection() const
+    {
+        return std::unique_ptr<mongo::ScopedDbConnection>(
+                mongo::ScopedDbConnection::getScopedDbConnection(connection_str));
+    }
+
+    mongo::ConnectionString connection_str;
     std::string ns;
 };
 
@@ -20,11 +37,9 @@ struct pimpl<indexer::value_db::transaction>::implementation
     typedef std::unordered_map<std::string, 
             std::unique_ptr<mongo::BSONObjBuilder>> objects_t;
     objects_t objects;
-    mongo::DBClientConnection* connection;
+    std::unique_ptr<mongo::ScopedDbConnection> connection;
     std::string* ns;
 };
-
-using boost::string_ref;
 
 namespace indexer {
 
@@ -34,17 +49,21 @@ mongo::StringData as_str(string_ref const& x)
 }
 
 value_db::value_db(string_ref const& server, string_ref const& ns)
+    : base(server)
 {
     implementation& impl = **this;
-    impl.db.connect(server.data());
+    auto conn = impl.connection();
     impl.ns.assign(ns.begin(), ns.end());
-    impl.db.ensureIndex(impl.ns, BSON( "key" << 1 ));
+    conn->get()->ensureIndex(impl.ns, BSON( "key" << 1 ));
+    conn->done();
 }
 
 std::string value_db::get(string_ref const& key) const
 {
     implementation const& impl = **this;
-    auto cursor = impl.db.query(impl.ns, QUERY("key" << as_str(key)));
+    auto conn = impl.connection();
+    auto cursor = conn->get()->query(impl.ns, QUERY("key" << as_str(key)));
+    conn->done();
     std::ostringstream oss;
     while (cursor->more()) {
         auto const& obj = cursor->next();
@@ -59,7 +78,7 @@ std::unique_ptr<value_db::transaction> value_db::start_tx()
 {
     implementation& impl = **this;
     std::unique_ptr<transaction> result(new transaction());
-    (*result)->connection = &impl.db;
+    (*result)->connection = impl.connection();
     (*result)->ns = &impl.ns;
     return result;
 }
@@ -93,8 +112,9 @@ void value_db::transaction::commit()
     implementation& impl = **this;
     for (auto const& p : impl.objects) {
         mongo::BSONObj obj = p.second->obj();
-        impl.connection->insert(*impl.ns, obj);
+        impl.connection->get()->insert(*impl.ns, obj);
     }
+    impl.connection->done();
 }
 
 void value_db::transaction::rollback()
