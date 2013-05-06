@@ -47,7 +47,7 @@ class Searcher(object):
         self.db = self.mongo[MONGO_DB]
 
 
-        keywords = normalise_drop(keywords)
+        keywords = set(normalise_drop(keywords))
         index = IndexServer('tcp://localhost:5555', 'enwiki')
 
         matched_docsets = []
