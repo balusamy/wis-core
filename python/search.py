@@ -198,7 +198,9 @@ if __name__ == '__main__':
 
     if not args.raw:
         s = Searcher(args.query)
-        print(s.show_documents(hili=lambda w: "|{0}|".format(w)))
+        for doc in s.show_documents(hili=lambda w: "|{0}|".format(w)):
+            text = '\n'.join((u"... {0} ...".format(p) for p in doc['parts']))
+            print(u"Title: {0}\n{1}\n\n".format(doc['title'], text))
         sys.exit(0)
 
     index = IndexServer(args.server, args.index)
