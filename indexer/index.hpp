@@ -16,7 +16,7 @@ struct index
     typedef std::vector<std::string> results_t;
 
     void insert(boost::string_ref const& data);
-    void search(boost::string_ref const& data, size_t k, results_t& results);
+    void search(boost::string_ref const& data, size_t k, bool has_transp, results_t& results);
 };
 
 }

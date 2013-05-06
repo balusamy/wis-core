@@ -24,6 +24,7 @@ set(index_server_src
     index_search.cpp
     stagedb.cpp
     index.cpp
+    fuzzy_processor.cpp
     trie.cpp
     ${INDEX_RPCZ_SRCS}
     ${INDEX_RPCZ_HDRS}

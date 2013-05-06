@@ -22,6 +22,7 @@
 #include <boost/filesystem/fstream.hpp>
 
 #include "trie_layout.hpp"
+#include "fuzzy_processor.hpp"
 
 namespace fs = ::boost::filesystem;
 namespace cont = ::boost::container;
@@ -573,6 +574,136 @@ struct pimpl<trie>::implementation
         }
     }
 
+    void do_search(trie_node_ref const& ref, std::string& scrap, fuzzy_processor const& proc, 
+            fuzzy_processor::context const& ctx, bool exact_dist, trie::results_t& results,
+            size_t skip_prefix = 0)
+    {
+        for (shared::trie_node::child const& child : ref.node()->children) {
+            fuzzy_processor::context new_ctx(ctx);
+            scrap.append(child.label.begin(), child.label.end());
+
+            bool is_leaf = child.ptr == trie_node_ref::ptr_t();
+
+            size_t dist;
+            string_ref s(scrap);
+            s.remove_prefix(skip_prefix);
+            if (proc.check(s, is_leaf, &dist, &new_ctx)) {
+                if (!is_leaf) {
+                    auto child_ref = resolve_node(child.ptr, ref.part());
+                    do_search(child_ref, scrap, proc, new_ctx, exact_dist, results,
+                            skip_prefix);
+                } else if (!exact_dist || dist == proc.max_corrections()) {
+                    append_result(results, scrap);
+                }
+            }
+
+            scrap.resize(scrap.size() - child.label.size());
+        }
+    }
+
+    void do_search_semiexact(trie_node_ref const& ref, std::string& scrap,
+            string_ref const& str, size_t switch_len,
+            fuzzy_processor const& proc, fuzzy_processor::context const& ctx, bool exact_dist,
+            trie::results_t& results)
+    {
+        for (shared::trie_node::child const& child : ref.node()->children) {
+            scrap.append(child.label.begin(), child.label.end());
+            size_t step = child.label.size();
+
+            bool is_leaf = child.ptr == trie_node_ref::ptr_t();
+
+            size_t prefix = switch_len + step - scrap.size();
+            if (scrap.size() < switch_len) {
+                if (!is_leaf && str.substr(0, step) == as_ref(child.label)) {
+                    auto child_ref = resolve_node(child.ptr, ref.part());
+                    do_search_semiexact(child_ref, scrap, str.substr(step), switch_len,
+                            proc, ctx, exact_dist, results);
+                }
+            } else if (str.substr(0, prefix) == as_ref(child.label).substr(0, prefix)) {
+                fuzzy_processor::context new_ctx(ctx);
+                if (scrap.size() > switch_len) {
+                    size_t dist;
+                    if (proc.check(as_ref(child.label).substr(prefix), is_leaf,
+                                &dist, &new_ctx)) {
+                        if (!is_leaf) {
+                            auto child_ref = resolve_node(child.ptr, ref.part());
+                            do_search(child_ref, scrap, proc, new_ctx, exact_dist, results,
+                                    switch_len);
+                        } else if (!exact_dist || dist == proc.max_corrections()) {
+                            append_result(results, scrap);
+                        }
+                    }
+                } else if (!is_leaf) {
+                    auto child_ref = resolve_node(child.ptr, ref.part());
+                    do_search(child_ref, scrap, proc, new_ctx, exact_dist, results,
+                            switch_len);
+                }
+            }
+
+            scrap.resize(scrap.size() - child.label.size());
+        }
+    }
+
+    void do_search2(trie_node_ref const& ref, std::string& scrap, size_t switch_len,
+            fuzzy_processor const& proc1, fuzzy_processor::context const& ctx1,
+            bool exact_dist1, fuzzy_processor const& proc2,
+            fuzzy_processor::context const& ctx2, bool exact_dist2,
+            trie::results_t& results)
+    {
+        for (shared::trie_node::child const& child : ref.node()->children) {
+            fuzzy_processor::context new_ctx1(ctx1);
+            size_t start_pos = scrap.size();
+            scrap.append(child.label.begin(), child.label.end());
+
+            bool is_leaf = child.ptr == trie_node_ref::ptr_t();
+
+            const size_t gap = proc1.max_corrections();
+            for (; start_pos < scrap.size(); ++start_pos) {
+                if (start_pos + 1 > switch_len + gap) {
+                    break;
+                }
+                proc1.feed(scrap, new_ctx1);
+                bool final_state = false;
+                if (!proc1.query(new_ctx1, final_state)) {
+                    break;
+                }
+                if (start_pos + 1 < switch_len - gap) {
+                    continue;
+                }
+                if (final_state) {
+                    fuzzy_processor::context new_ctx2(ctx2);
+                    bool ok2 = true, final2 = false;
+                    size_t dist2;
+                    for (size_t k = start_pos + 1; k < scrap.size(); ++k) {
+                        proc2.feed(scrap[k], new_ctx2);
+                        if (!proc2.query(new_ctx2, final2, &dist2)) {
+                            ok2 = false;
+                            break;
+                        }
+                    }
+                    if (start_pos + 1 == scrap.size() || ok2) {
+                        if (!is_leaf) {
+                            auto child_ref = resolve_node(child.ptr, ref.part());
+                            do_search(child_ref, scrap, proc2, new_ctx2,
+                                    exact_dist2, results);
+                        } else if (final2 && 
+                                (!exact_dist2 || dist2 == proc2.max_corrections())) {
+                            append_result(results, scrap);
+                        }
+                    }
+                }
+            }
+
+            if (!is_leaf && start_pos == scrap.size()) {
+                auto child_ref = resolve_node(child.ptr, ref.part());
+                do_search2(child_ref, scrap, switch_len,
+                        proc1, new_ctx1, exact_dist1, proc2, ctx2, exact_dist2, results);
+            }
+
+            scrap.resize(scrap.size() - child.label.size());
+        }
+    }
+
     trie_part* load_part(size_t idx, bool create_if_missing = false)
     {
         if (parts.count(idx) == 0) {
@@ -605,6 +736,21 @@ struct pimpl<trie>::implementation
             throw std::logic_error("Cannot write ref " + path.string());
     }
 
+    void append_result(trie::results_t& results, boost::string_ref const& s)
+    {
+        // EOS hack :(
+        results.push_back(std::string(s.data(), s.size() - 1));
+    }
+
+    std::string append_eos(boost::string_ref const& s)
+    {
+        std::string str;
+        str.reserve(s.size() + EOS.size());
+        str.append(s.begin(), s.end());
+        str += EOS;
+        return str;
+    }
+
     implementation(fs::path const& part_dir)
         : part_dir(part_dir)
         , part_grow_policy(new limited_grow_policy(1U << 28, 0.04, 2., 1U << 28)) // 256 MB starting size, 256 MB limit
@@ -624,12 +770,17 @@ struct pimpl<trie>::implementation
         }
     }
 
+    static const std::string EOS;
+
     fs::path part_dir;
     std::unique_ptr<grow_policy> part_grow_policy;
     size_t current_part;
     shared::external_ref head;
     boost::unordered_map<size_t, std::unique_ptr<trie_part>> parts;
 };
+
+// 0xFF is chosen because will never be in a valid UTF-8 string
+const std::string pimpl<trie>::implementation::EOS = "\xFF";
 
 trie::trie(fs::path const& path, bool read_only)
     : base(path)
@@ -645,7 +796,8 @@ void trie::insert(boost::string_ref const& data)
         auto part = new_head->part();
         impl.head = shared::external_ref(part->number(),
                 part->stable_offset(new_head->node()));
-        std::cout << "Moving HEAD to " << impl.head.part_number << ":" << impl.head.offset << std::endl;
+        std::cout << "Moving HEAD to " << impl.head.part_number << ":" 
+            << impl.head.offset << std::endl;
         impl.save_ref(impl.part_dir / "HEAD", impl.head);
     }
 }
@@ -655,4 +807,60 @@ void trie::search_exact(boost::string_ref const& data, results_t& results)
     implementation& impl = **this;
     auto root = impl.resolve_external_ref(impl.head);
     impl.do_search_exact(root, data, 0, results);
+}
+
+void trie::search(boost::string_ref const& data, size_t k, bool has_transp, results_t& results)
+{
+    implementation& impl = **this;
+    if (k == 0) {
+        search_exact(data, results);
+        return;
+    }
+
+    std::string pattern = impl.append_eos(data);
+    fuzzy_processor proc(pattern, k, has_transp);
+    fuzzy_processor::context ctx(proc);
+
+    auto root = impl.resolve_external_ref(impl.head);
+    std::string scrap;
+    impl.do_search(root, scrap, proc, ctx, false, results);
+}
+
+
+void trie::search_split(boost::string_ref const& data, size_t switch_len,
+        size_t k1, bool exact_dist1, size_t k2, bool exact_dist2,
+        bool has_transp, results_t& results)
+{
+    implementation& impl = **this;
+    if (k1 == 0 && k2 == 0) {
+        search_exact(data, results);
+        return;
+    }
+    if (switch_len == 0) {
+        search(data, k1 + k2, has_transp, results);
+        return;
+    }
+
+    std::string pattern = impl.append_eos(data);
+    string_ref s1 = string_ref(pattern).substr(0, switch_len);
+    string_ref s2 = string_ref(pattern).substr(switch_len);
+
+    fuzzy_processor proc1(s1, k1, has_transp);
+    fuzzy_processor proc2(s2, k2, has_transp);
+    fuzzy_processor::context ctx1(proc1);
+    fuzzy_processor::context ctx2(proc2);
+
+    auto root = impl.resolve_external_ref(impl.head);
+    std::string scrap;
+    if (k1 != 0) {
+        // It is possible that s1 matches an empty string.
+        if (s1.size() == k1 || (!exact_dist1 && s1.size() < k1)) {
+            impl.do_search(root, scrap, proc2, ctx2, exact_dist2, results);
+        }
+        impl.do_search2(root, scrap, switch_len, proc1, ctx1, exact_dist1,
+                proc2, ctx2, exact_dist2, results);
+    } else {
+        impl.do_search_semiexact(root, scrap, pattern, switch_len,
+                proc2, ctx2, exact_dist2, results);
+    }
 }

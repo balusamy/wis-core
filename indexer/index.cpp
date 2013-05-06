@@ -2,6 +2,8 @@
 
 #include <memory>
 #include <boost/format.hpp>
+#include <boost/range/algorithm.hpp>
+#include <boost/range/algorithm_ext.hpp>
 
 #include "trie.hpp"
 #include "exceptions.hpp"
@@ -38,15 +40,63 @@ void index::insert(boost::string_ref const& data)
     impl.reverse.insert(s);
 }
 
-void index::search(boost::string_ref const& data, size_t k, results_t& results)
+void index::search(boost::string_ref const& data, size_t k, bool has_transp, results_t& results)
 {
     implementation& impl = **this;
     if (k != 0) {
-        BOOST_THROW_EXCEPTION(common_exception()
-                << errinfo_rpc_code(::rpc_error::OPERATION_NOT_SUPPORTED)
-                << errinfo_message(str(boost::format(
-                            "Index search with k=%s is not implemented") % k)));
+        size_t switch_len = data.size() / 2;
+        size_t switch_len_1 = data.size() - switch_len;
+
+        if (switch_len == 0) {
+            impl.forward.search(data, k, has_transp, results);
+            return;
+        }
+
+        results_t rev_results;
+        std::string copy(data);
+
+        if (has_transp) {
+            std::swap(copy[switch_len - 1], copy[switch_len]);
+
+            if (k == 1) {
+                impl.forward.search_exact(copy, results);
+            } else {
+                size_t k1 = 0, k2 = k - 1;
+                for (; k2 >= k1; ++k1, --k2) {
+                    impl.forward.search_split(copy, switch_len, k1, true, k2, false,
+                            has_transp, results);
+                }
+                boost::reverse(copy);
+                for (; k2-- > 0; ++k1) {
+                    impl.reverse.search_split(copy, switch_len_1, k2, false, k1, true,
+                            has_transp, rev_results);
+                }
+                boost::reverse(copy);
+            }
+
+            std::swap(copy[switch_len - 1], copy[switch_len]);
+        }
+
+        size_t k1 = 0, k2 = k;
+        for (; k2 >= k1; ++k1, --k2) {
+            impl.forward.search_split(copy, switch_len, k1, true, k2, false,
+                    has_transp, results);
+        }
+        boost::reverse(copy);
+        for (; k2-- > 0; ++k1) {
+            impl.reverse.search_split(copy, switch_len_1, k2, false, k1, true,
+                    has_transp, rev_results);
+        }
+        boost::reverse(copy);
+
+        for (auto& s : rev_results) {
+            boost::reverse(s);
+            results.push_back(s);
+        }
+
+        boost::erase(results, boost::unique<boost::return_found_end>(boost::sort(results)));
     } else {
+        // TODO: handle EOS in the trie?
         std::string word(data.begin(), data.end());
         word += EOS;
         impl.forward.search_exact(word, results);

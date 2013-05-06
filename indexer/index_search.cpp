@@ -51,7 +51,7 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
         auto index = impl.store->index();
         auto db = impl.store->db();
         ::indexer::index::results_t results;
-        index->search(request.word(), request.maxcorrections(), results);
+        index->search(request.word(), request.maxcorrections(), false, results);
         QueryResult pb_results;
         pb_results.set_exact_total(results.size());
         for (std::string const& result : results) {
