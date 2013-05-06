@@ -13,8 +13,8 @@ import sys
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
-from nlp import tokenise, normalise_drop
-from utils import merge_sorted
+from nlp import normalise_drop
+from utils import merge_sorted, tokens
 
 
 class IndexServer(object):
@@ -52,7 +52,7 @@ class Searcher(object):
         self.db = self.mongo[MONGO_DB]
 
 
-        keywords = set(normalise_drop(tokenise(query)))
+        keywords = set(normalise_drop(tokens(query)))
         if not keywords: raise NotEnoughEntropy()
 
         index = IndexServer(server, store_path)
@@ -126,9 +126,10 @@ class Searcher(object):
         result = []
         for sha1, score in self.scores[:n]:
             positions = self.poslists[sha1]
-            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1})
+            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1, 'tokens':1})
 
-            tokens = doc['text']
+            text = doc['text']
+            tokens = doc['tokens']
 
             events = []
             for pos in positions:

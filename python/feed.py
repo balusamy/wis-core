@@ -13,8 +13,9 @@ from time import time
 from extract import unwiki
 import index_server_pb2 as index_pb
 import index_server_rpcz as index_rpcz
-from nlp import tokenise, normalise
+from nlp import itokenise, normalise
 import parse_wiki
+import utils
 from utils import grouper
 
 
@@ -115,8 +116,9 @@ try:
 
 
                 text = unwiki(text)
-                all_tokens = tokenise(text)
-                tokens = normalise(all_tokens)
+                (text, itokens) = itokenise(text)
+                itokens = list(itokens)
+                tokens = normalise(utils.tokens(text, itokens))
 
                 if not tokens: continue
 
@@ -132,9 +134,10 @@ try:
                 docs.append({
                     '_id': sha1,
                     'title': title,
-                    'text': all_tokens,
+                    'text': text,
+                    'tokens': itokens,
+                    'size': len(itokens),
                     'maxf': article_tokens.most_common(1)[0][1],
-                    'size': len(all_tokens),
                 })
 
             if not docs: continue

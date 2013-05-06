@@ -1,7 +1,35 @@
-from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.data import load
+from nltk.tokenize.treebank import TreebankWordTokenizer
+from nltk.tokenize.api import TokenizerI
 from nltk.stem.snowball import EnglishStemmer
 from nltk.corpus import stopwords
+import re
 
+
+class AwesomeTokenizer(TokenizerI):
+    def __init__(self, tokeniser):
+        self._toker = tokeniser
+
+    @staticmethod
+    def prepare(text):
+        ## They'll do those substitutions, so I'm doing them in advance
+        ## to be able to find separate tokens
+        text = re.sub(r'^\"', r'``', text)
+        text = re.sub(r'([ (\[{<])"', r'\1 `` ', text)
+        text = re.sub(r'"', " '' ", text)
+        return text
+
+    def span_tokenize(self, text):
+        pos = 0
+
+        for token in self._toker.tokenize(text):
+            s = text.index(token[0], pos)
+            yield (s, s + len(token))
+            pos = s + len(token)
+
+
+sent_tokeniser = load('tokenizers/punkt/english.pickle')
+word_tokeniser = AwesomeTokenizer(TreebankWordTokenizer())
 
 snowball = EnglishStemmer()
 stop = filter(lambda w: len(w) > 2, stopwords.words('english')) + [
@@ -16,8 +44,13 @@ def has_char(w):
 def is_good_word(w):
     return len(w) > 2 and has_char(w)
 
-def tokenise(text):
-    return [w for s in sent_tokenize(text) for w in word_tokenize(s)]
+def itokenise(text):
+    text = word_tokeniser.prepare(text)
+    def gen():
+        for s_s, s_e in sent_tokeniser.span_tokenize(text):
+            for w_s, w_e in word_tokeniser.span_tokenize(text[s_s:s_e]):
+                yield (s_s + w_s, s_s + w_e)
+    return (text, gen())
 
 def normalise(words):
     words = enumerate(words)
