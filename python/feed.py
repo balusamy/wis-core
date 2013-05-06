@@ -52,9 +52,24 @@ MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER
 
 mongo = MongoClient(MONGO_ADDRESS)
 db = mongo[MONGO_DB]
+service = db.service
 articles = db.articles
+
 articles.drop()
 articles.ensure_index([('sha1', 1)])
+service.remove({'_id': 'avg_len'})
+
+
+def update_avg_len():
+    pipeline = [
+        {'$project': {'_id': 0, 'text': 1}},
+        {'$unwind': '$text'},
+        {'$group': {'_id': None, 'total': {'$sum': 1}}},
+    ]
+
+    avg_len = articles.aggregate(pipeline)['result'][0]['total'] / articles.count()
+    service.update({'_id': 'avg_len'}, {'$set': {'val': avg_len}}, upsert=True)
+    return avg_len
 
 
 try:
@@ -151,6 +166,10 @@ try:
             this_round_count = 0
             time_preproc = time_iserv = time_mongo = 0
             last_time = time()
+
+    print('Done. Recalculating service vars now...')
+    avg_len = update_avg_len()
+    print('Average document size: {0}'.format(avg_len))
 finally:
     mongo.close()
     iserver.closeStore(index_pb.Void())
