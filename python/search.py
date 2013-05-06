@@ -9,6 +9,7 @@ from math import log
 from pymongo import MongoClient
 import rpcz
 import time
+import sys
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
@@ -126,12 +127,45 @@ class Searcher(object):
             doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'url':1, 'text':1})
 
             tokens = doc['text']
-            parts = []
-            for pos in positions:
-                ws = tokens[pos-NUM_BEFORE : pos] + [hili(tokens[pos])] + tokens[pos+1 : pos+NUM_AFTER]
-                parts.append(' '.join(ws))
 
-            result.append({'title': doc['title'], 'url': '#', 'parts': parts})
+            events = []
+            for pos in positions:
+                events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
+            events.sort()
+
+            class Part(object):
+                def __init__(self, start):
+                    self.start = start
+                    self.hili = set()
+                    self.end = None
+
+                def str(self):
+                    result = []
+                    for i in range(self.start, self.end):
+                        if i < 0 or i >= len(tokens):
+                            continue
+                        if i in self.hili:
+                            result.append(hili(tokens[i]))
+                        else:
+                            result.append(tokens[i])
+                    return ' '.join(result)
+
+            parts = []
+            depth = 0
+            for (p, e) in events:
+                if e == -1:
+                    if depth == 0:
+                        parts.append(Part(p))
+                    depth += 1
+                elif e == 0:
+                    parts[-1].hili.add(p)
+                else:
+                    depth -= 1
+                    if depth == 0:
+                        parts[-1].end = p
+
+            result.append({'title': doc['title'], 'url': '#',
+                'parts': [p.str() for p in parts]})
         self._TIME('render')
 
         return result
@@ -157,7 +191,14 @@ if __name__ == '__main__':
                         help='the remote index store to open')
     parser.add_argument('--timeout', '-t', type=float, default=5.0,
                         help='the request timeout')
+    parser.add_argument('--raw', action='store_true', default=False,
+                        help='Bypass the Searcher')
     args = parser.parse_args()
+
+    if not args.raw:
+        s = Searcher(args.query)
+        print(s.show_documents(hili=lambda w: "|{0}|".format(w)))
+        sys.exit(0)
 
     index = IndexServer(args.server, args.index)
     result = index.query(unicode(args.query, "UTF-8"), args.mistakes, args.timeout)
