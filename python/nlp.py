@@ -4,7 +4,9 @@ from nltk.corpus import stopwords
 
 
 snowball = EnglishStemmer()
-stop = filter(lambda w: len(w) > 2, stopwords.words('english'))
+stop = filter(lambda w: len(w) > 2, stopwords.words('english')) + [
+            "n't",
+       ]
 
 def has_char(w):
     for c in w:
