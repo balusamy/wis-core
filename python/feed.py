@@ -94,6 +94,7 @@ try:
         last_time = time()
         articles_count = 0
         this_round_count = 0
+        processed_articles = skip
 
         for docgroup in grouper(args.round, parser):
 
@@ -167,13 +168,16 @@ try:
             ##
             # Reporting stats
 
+            processed_articles += args.round
+
             new_total = articles_count + this_round_count
-            print('preproc: {preproc:.6f}  iserv: {iserv:.6f}  mongo: {mongo:.6f}  // +{new} articles (= {total} total)'.format(
+            print('preproc: {preproc:.6f}  iserv: {iserv:.6f}  mongo: {mongo:.6f}  // +{new} articles (= {total} total @ {processed})'.format(
                 preproc = time_preproc / this_round_count,
                 iserv = time_iserv / this_round_count,
                 mongo = time_mongo / this_round_count,
                 new = this_round_count,
                 total = new_total,
+                processed = processed_articles,
             ))
             print('{speed:.2f} articles/s'.format(speed=this_round_count/(time()-last_time)))
 
