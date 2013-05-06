@@ -74,7 +74,7 @@ struct pimpl<indexer::store>::implementation
         }
 
         this->index.reset(new indexer::index(location / "index"));
-        this->db.reset(new stage_db(location / "db", false));
+        this->db.reset(new indexer::value_db("localhost", "index.postings"));
 
         io::stream<io::file_source> store_info((location / "info").string());
         this->format.ParseFromIstream(&store_info);
@@ -89,7 +89,7 @@ struct pimpl<indexer::store>::implementation
     fs::path store_root;
     indexer::IndexFormat format;
     boost::shared_ptr<indexer::index> index;
-    boost::shared_ptr<stage_db> db;
+    boost::shared_ptr<indexer::value_db> db;
 };
 
 template <>
@@ -126,7 +126,7 @@ boost::shared_ptr<index> store::index() const
     return (*this)->index;
 }
 
-boost::shared_ptr<stage_db> store::db() const
+boost::shared_ptr<value_db> store::db() const
 {
     return (*this)->db;
 }

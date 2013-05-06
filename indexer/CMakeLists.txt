@@ -22,6 +22,7 @@ set(index_server_src
     store_manager.cpp
     index_builder.cpp
     index_search.cpp
+    value_db.cpp
     stagedb.cpp
     index.cpp
     fuzzy_processor.cpp
@@ -34,9 +35,10 @@ add_executable(index_server ${index_server_src})
 
 find_library(ZMQPP_LIBRARY NAMES libzmqpp.so.2)
 find_library(LEVELDB_LIBRARY NAMES leveldb)
+find_library(MONGO_CLIENT_LIBRARY NAMES mongoclient)
 
 target_link_libraries(index_server ${Boost_LIBRARIES} ${ZMQPP_LIBRARY} ${RPCZ_LIBRARIES}
-    ${LEVELDB_LIBRARY})
+    ${LEVELDB_LIBRARY} ${MONGO_CLIENT_LIBRARY})
 
 add_executable(partstat partstat.cpp)
 target_link_libraries(partstat ${Boost_LIBRARIES})
