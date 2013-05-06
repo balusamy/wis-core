@@ -22,41 +22,43 @@ parser = argparse.ArgumentParser(description='Populate index databases.')
 parser.add_argument('dumpfile', help='dump-file path')
 parser.add_argument('-m', '--mongocred', default='mongo.cred', help='path to MongoDB credentials', metavar='FILE')
 parser.add_argument('-r', '--round', type=int, default=50, help='number of articles to process during one round', metavar='NUMBER')
+parser.add_argument('--disable-index', action='store_true', default=False, help='no not build index on the index server')
+parser.add_argument('--disable-mongo', action='store_true', default=False, help='no not store documents in MongoDB')
 args = parser.parse_args()
 
 
 ##
 # Initialising index-store
+if not args.disable_index:
+    ISERVER_ADDRESS = 'tcp://localhost:5555'
+    STORE_NAME = 'idontcare'
 
-ISERVER_ADDRESS = 'tcp://localhost:5555'
-STORE_NAME = 'idontcare'
-
-app = rpcz.Application()
-iserver = index_rpcz.IndexBuilderService_Stub(
-            app.create_rpc_channel(ISERVER_ADDRESS))
-store = index_pb.StoreParameters()
-store.location = STORE_NAME
-store.overwrite = True
-iserver.createStore(store, deadline_ms=1)
+    app = rpcz.Application()
+    iserver = index_rpcz.IndexBuilderService_Stub(
+                app.create_rpc_channel(ISERVER_ADDRESS))
+    store = index_pb.StoreParameters()
+    store.location = STORE_NAME
+    store.overwrite = True
+    iserver.createStore(store, deadline_ms=1)
 
 
 ##
 # Initialising MongoDB
+if not args.disable_mongo:
+    with open(args.mongocred, 'rt') as f:
+        MONGO_HOST = f.readline().strip()
+        MONGO_DB   = f.readline().strip()
+        MONGO_USER = f.readline().strip()
+        MONGO_PASS = f.readline().strip()
+    MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
 
-with open(args.mongocred, 'rt') as f:
-    MONGO_HOST = f.readline().strip()
-    MONGO_DB   = f.readline().strip()
-    MONGO_USER = f.readline().strip()
-    MONGO_PASS = f.readline().strip()
-MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
+    mongo = MongoClient(MONGO_ADDRESS)
+    db = mongo[MONGO_DB]
+    articles = db.articles
 
-mongo = MongoClient(MONGO_ADDRESS)
-db = mongo[MONGO_DB]
-articles = db.articles
-
-articles.drop()
-articles.ensure_index([('sha1', 1)])
-db.service.remove({'_id': 'avg_len'})
+    articles.drop()
+    articles.ensure_index([('sha1', 1)])
+    db.service.remove({'_id': 'avg_len'})
 
 
 def update_avg_len():
@@ -132,12 +134,14 @@ try:
             t2 = time()
 
             # Index
-            iserver.feedData(bdata, deadline_ms=10)
+            if not args.disable_index:
+                iserver.feedData(bdata, deadline_ms=10)
 
             t3 = time()
 
             # MongoDB
-            articles.insert(docs)
+            if not args.disable_mongo:
+                articles.insert(docs)
 
             t4 = time()
 
@@ -166,19 +170,22 @@ try:
             time_preproc = time_iserv = time_mongo = 0
             last_time = time()
 
-    print('Populating token_articles table')
-    t1 = time()
-    for w,c in token_articles:
-        db.token_articles.save({'_id': w, 'count': c})
-    t2 = time()
-    print('Done in {0:.1f} seconds.'.format(t2-t1))
+    if not args.disable_mongo:
+        print('Populating token_articles table')
+        t1 = time()
+        for w,c in token_articles.items():
+            db.token_articles.save({'_id': w, 'count': c})
+        t2 = time()
+        print('Done in {0:.1f} seconds.'.format(t2-t1))
 
 
-    print('Recalculating service vars now...')
-    t1 = time()
-    avg_len = update_avg_len()
-    t2 = time()
-    print('Done in {0:.1f} seconds. Avg document size = {1}.'.format(t2-t1, avg_len))
+        print('Recalculating service vars now...')
+        t1 = time()
+        avg_len = update_avg_len()
+        t2 = time()
+        print('Done in {0:.1f} seconds. Avg document size = {1}.'.format(t2-t1, avg_len))
 finally:
-    mongo.close()
-    iserver.closeStore(index_pb.Void())
+    if not args.disable_mongo:
+        mongo.close()
+    if not args.disable_index:
+        iserver.closeStore(index_pb.Void())
