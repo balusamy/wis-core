@@ -99,14 +99,14 @@ class Searcher(object):
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
 
 
-    def show_documents(self, hili=lambda w:w):
+    def show_documents(self, n=10, hili=lambda w:w):
         if not self.scores: return None
 
         NUM_BEFORE = 5
         NUM_AFTER = 5
 
         result = []
-        for sha1, score in self.scores:
+        for sha1, score in self.scores[:n]:
             positions = self.poslists[sha1]
             doc = self.fetched[sha1]
 
