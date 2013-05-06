@@ -52,7 +52,7 @@ MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER
 
 mongo = MongoClient(MONGO_ADDRESS)
 db = mongo[MONGO_DB]
-articles = db.tst_articles
+articles = db.articles
 
 articles.drop()
 articles.ensure_index([('sha1', 1)])
