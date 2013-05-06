@@ -91,17 +91,13 @@ class Searcher(object):
         # Here comes BM52 to save the world!
         scores = []
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
+        doc_sizes = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1})
         self._TIME('mongo')
-        for sha1 in docs:
+        for d in doc_sizes:
             score = 0
 
-            self._TIME()
-            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'size':1})
-            self._TIME('mongo')
-            if not doc:
-                del self.poslists[sha1]
-                continue
-            size = doc['size']
+            sha1 = d['_id']
+            size = d['size']
 
             for kw in keywords:
                 m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
