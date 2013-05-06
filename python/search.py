@@ -126,7 +126,6 @@ class Searcher(object):
         for sha1, score in self.scores[:n]:
             positions = self.poslists[sha1]
             doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'url':1, 'text':1})
-            doc = self.fetched[sha1]
 
             tokens = doc['text']
             parts = []
