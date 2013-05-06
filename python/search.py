@@ -35,7 +35,8 @@ class IndexServer(object):
 
 
 class Searcher(object):
-    def __init__(self, query):
+    def __init__(self, query, server='tcp://localhost:5555', store_path='enwiki',
+                 max_mistakes=0):
         k1 = 1.6
         b = 0.75
 
@@ -54,7 +55,7 @@ class Searcher(object):
         keywords = set(normalise_drop(tokenise(query)))
         if not keywords: raise NotEnoughEntropy()
 
-        index = IndexServer('tcp://localhost:5555', 'enwiki')
+        index = IndexServer(server, store_path)
 
         matched_docsets = []
         doc_poslists = defaultdict(lambda: [])
@@ -62,7 +63,7 @@ class Searcher(object):
 
         for kw in keywords:
             self._TIME()
-            res = index.query(kw, max_mistakes=0).values
+            res = index.query(kw, max_mistakes=max_mistakes).values
             self._TIME('index')
 
             if not res:
@@ -197,7 +198,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not args.raw:
-        s = Searcher(args.query)
+        s = Searcher(args.query, server=args.server, store_path=args.index,
+                     max_mistakes=args.mistakes)
         for doc in s.show_documents(hili=lambda w: "|{0}|".format(w)):
             text = '\n'.join((u"... {0} ...".format(p) for p in doc['parts']))
             print(u"Title: {0}\n{1}\n\n".format(doc['title'], text))
