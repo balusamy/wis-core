@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import argparse
 from bz2 import BZ2File
-from collections import Counter, OrderedDict
+from collections import Counter, defaultdict
 import cPickle
 from pymongo import MongoClient
 import rpcz
@@ -32,7 +32,7 @@ args = parser.parse_args()
 # Initialising index-store
 if not args.disable_index:
     ISERVER_ADDRESS = 'tcp://localhost:5555'
-    STORE_NAME = 'idontcare'
+    STORE_NAME = 'enwiki'
 
     app = rpcz.Application()
     iserver = index_rpcz.IndexBuilderService_Stub(
@@ -92,7 +92,7 @@ try:
 
             t1 = time()
 
-            postings = OrderedDict()
+            postings = defaultdict(lambda: [])
             bdata = index_pb.BuilderData()
             docs = []
 
@@ -114,10 +114,12 @@ try:
 
                 article_tokens = Counter()
 
+                thisdoc_postings = defaultdict(lambda: [])
                 for i, w in tokens:
                     article_tokens[w] += 1
-                    if w in postings: postings[w].append((sha1, i))
-                    else: postings[w] = [(sha1, i)]
+                    thisdoc_postings[w].append(i)
+                for w, l in thisdoc_postings.iteritems():
+                    postings[w].append((sha1, l))
 
                 docs.append({
                     '_id': sha1,
