@@ -52,12 +52,11 @@ MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER
 
 mongo = MongoClient(MONGO_ADDRESS)
 db = mongo[MONGO_DB]
-service = db.service
-articles = db.articles
+articles = db.tst_articles
 
 articles.drop()
 articles.ensure_index([('sha1', 1)])
-service.remove({'_id': 'avg_len'})
+db.service.remove({'_id': 'avg_len'})
 
 
 def update_avg_len():
@@ -68,7 +67,7 @@ def update_avg_len():
     ]
 
     avg_len = articles.aggregate(pipeline)['result'][0]['total'] / articles.count()
-    service.update({'_id': 'avg_len'}, {'$set': {'val': avg_len}}, upsert=True)
+    db.service.save({'_id': 'avg_len', 'val': avg_len})
     return avg_len
 
 
@@ -114,7 +113,7 @@ try:
                     article_tokens[w] += 1
                     if w in postings: postings[w].append((sha1, i))
                     else: postings[w] = [(sha1, i)]
-                token_articles.update(article_tokens)
+                token_articles.update(article_tokens.keys())
 
                 docs.append({
                     'sha1': sha1,
@@ -167,9 +166,19 @@ try:
             time_preproc = time_iserv = time_mongo = 0
             last_time = time()
 
-    print('Done. Recalculating service vars now...')
+    print('Populating token_articles table')
+    t1 = time()
+    for w,c in token_articles:
+        db.token_articles.save({'_id': w, 'count': c})
+    t2 = time()
+    print('Done in {0:.1f} seconds.'.format(t2-t1))
+
+
+    print('Recalculating service vars now...')
+    t1 = time()
     avg_len = update_avg_len()
-    print('Average document size: {0}'.format(avg_len))
+    t2 = time()
+    print('Done in {0:.1f} seconds. Avg document size = {1}.'.format(t2-t1, avg_len))
 finally:
     mongo.close()
     iserver.closeStore(index_pb.Void())
