@@ -25,6 +25,7 @@ parser.add_argument('-r', '--round', type=int, default=50, help='number of artic
 parser.add_argument('--disable-index', action='store_true', default=False, help='no not build index on the index server')
 parser.add_argument('--disable-mongo', action='store_true', default=False, help='no not store documents in MongoDB')
 parser.add_argument('--skip', type=int, default=0, help='skip this number of articles')
+parser.add_argument('--empty', action='store_true', default=False, help='empty database')
 args = parser.parse_args()
 
 
@@ -39,8 +40,12 @@ if not args.disable_index:
                 app.create_rpc_channel(ISERVER_ADDRESS))
     store = index_pb.StoreParameters()
     store.location = STORE_NAME
-    store.overwrite = True
-    iserver.createStore(store, deadline_ms=1)
+    if args.empty:
+        store.overwrite = True
+        iserver.createStore(store, deadline_ms=1)
+    else:
+        store.overwrite = False
+        iserver.openStore(store, deadline_ms=1)
 
 
 ##
@@ -56,6 +61,8 @@ if not args.disable_mongo:
     mongo = MongoClient(MONGO_ADDRESS)
     db = mongo[MONGO_DB]
     articles = db.articles
+    if args.empty:
+        articles.drop()
 
     db.service.remove({'_id': 'avg_len'})
 
