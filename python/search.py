@@ -82,7 +82,8 @@ class Searcher(object):
 
 
         self._TIME()
-        doc_count = {kw: len(freq[kw]) for kw in freq}
+        doc_count = Counter()
+        doc_count.update({kw: len(freq[kw]) for kw in freq})
 
         N = self.N = self.db.articles.count()
         idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in keywords}
