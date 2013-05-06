@@ -132,6 +132,7 @@ try:
                     'title': title,
                     'text': all_tokens,
                     'maxf': article_tokens.most_common(1)[0][1],
+                    'size': len(all_tokens),
                 })
 
             if not docs: continue

@@ -92,17 +92,16 @@ class Searcher(object):
         scores = []
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
         self._TIME('mongo')
-        self.fetched = {}
         for sha1 in docs:
             score = 0
 
             self._TIME()
-            doc = self.fetched[sha1] = self.db.articles.find_one({'_id': sha1})
+            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'size':1})
             self._TIME('mongo')
             if not doc:
                 del self.poslists[sha1]
                 continue
-            size = len(doc['text'])
+            size = doc['size']
 
             for kw in keywords:
                 m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
@@ -114,7 +113,8 @@ class Searcher(object):
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
         self._TIME('ranking')
         for sha1, s in self.scores:
-            t = self.fetched[sha1]['title']
+            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1})
+            t = doc['title']
             print((t, s, sha1))
 
 
@@ -129,6 +129,7 @@ class Searcher(object):
         result = []
         for sha1, score in self.scores[:n]:
             positions = self.poslists[sha1]
+            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'url':1, 'text':1})
             doc = self.fetched[sha1]
 
             tokens = doc['text']
