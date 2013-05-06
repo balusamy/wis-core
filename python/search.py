@@ -108,10 +108,6 @@ class Searcher(object):
         self._TIME()
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
         self._TIME('ranking')
-        for sha1, s in self.scores:
-            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1})
-            t = doc['title']
-            print((t, s, sha1))
 
 
     def show_documents(self, n=10, hili=lambda w:w):
