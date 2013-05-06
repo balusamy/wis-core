@@ -8,6 +8,7 @@ import cPickle
 from math import log
 from pymongo import MongoClient
 import rpcz
+import time
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
@@ -37,6 +38,8 @@ class Searcher(object):
         k1 = 1.6
         b = 0.75
 
+        self.timings = defaultdict(lambda: 0)
+
         with open('mongo.cred', 'rt') as f:
             MONGO_HOST = f.readline().strip()
             MONGO_DB   = f.readline().strip()
@@ -55,7 +58,9 @@ class Searcher(object):
         freq = defaultdict(lambda: Counter())
 
         for kw in keywords:
+            self._TIME()
             res = index.query(kw, max_mistakes=0).values
+            self._TIME('index')
 
             if not res:
                 data = []
@@ -70,21 +75,29 @@ class Searcher(object):
                 doc_poslists[sha1].append(positions)
                 freq[kw][sha1] += len(positions)
             matched_docsets.append(matched_docs)
+            self._TIME('proc')
 
+
+        self._TIME()
         doc_count = {kw: len(freq[kw]) for kw in freq}
 
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
         self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
+        self._TIME('proc')
 
         # Here comes BM52 to save the world!
         scores = []
         N = self.N = self.db.articles.count()
+        self._TIME()
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
+        self._TIME('mongo')
         self.fetched = {}
         for sha1 in docs:
             score = 0
 
+            self._TIME()
             doc = self.fetched[sha1] = self.db.articles.find_one({'_id': sha1})
+            self._TIME('mongo')
             if not doc:
                 del self.poslists[sha1]
                 continue
@@ -95,8 +108,14 @@ class Searcher(object):
                 m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
                 score += idf * m
             scores.append((sha1, score))
+            self._TIME('ranking')
 
+        self._TIME()
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
+        self._TIME('ranking')
+        for sha1, s in self.scores:
+            t = self.fetched[sha1]['title']
+            print((t, s, sha1))
 
 
     def show_documents(self, n=10, hili=lambda w:w):
@@ -104,6 +123,8 @@ class Searcher(object):
 
         NUM_BEFORE = 5
         NUM_AFTER = 5
+
+        self._TIME()
 
         result = []
         for sha1, score in self.scores[:n]:
@@ -117,8 +138,15 @@ class Searcher(object):
                 parts.append(' '.join(ws))
 
             result.append({'title': doc['title'], 'url': '#', 'parts': parts})
+        self._TIME('render')
 
         return result
+
+    def _TIME(self, label=None):
+        if label:
+            self.timings[label] += time.time() - self._timer
+        self._timer = time.time()
+
 
 
 if __name__ == '__main__':
