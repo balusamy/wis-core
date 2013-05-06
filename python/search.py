@@ -82,7 +82,7 @@ class Searcher(object):
         doc_count = {kw: len(freq[kw]) for kw in freq}
 
         N = self.N = self.db.articles.count()
-        idf = {kw: log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5)) for kw in keywords}
+        idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in keywords}
 
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
         self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
