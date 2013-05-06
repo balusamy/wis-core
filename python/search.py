@@ -81,14 +81,15 @@ class Searcher(object):
         self._TIME()
         doc_count = {kw: len(freq[kw]) for kw in freq}
 
+        N = self.N = self.db.articles.count()
+        idf = {kw: log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5)) for kw in keywords}
+
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
         self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
         self._TIME('proc')
 
         # Here comes BM52 to save the world!
         scores = []
-        N = self.N = self.db.articles.count()
-        self._TIME()
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
         self._TIME('mongo')
         self.fetched = {}
@@ -104,9 +105,8 @@ class Searcher(object):
             size = len(doc['text'])
 
             for kw in keywords:
-                idf = log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))
                 m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
-                score += idf * m
+                score += idf[kw] * m
             scores.append((sha1, score))
             self._TIME('ranking')
 
