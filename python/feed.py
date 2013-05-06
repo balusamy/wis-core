@@ -111,7 +111,7 @@ try:
 
                 if ns != '0': continue
                 if not text: continue # wtf
-                if text.startswith('#REDIRECT'): continue
+                if text[:9].tolower() == ('#redirect'): continue
 
 
                 text = unwiki(text)
