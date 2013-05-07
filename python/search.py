@@ -47,13 +47,10 @@ class Searcher(object):
                         r = index.query(token, max_mistakes=2, keys_only=True)
                     if 0 < r.exact_total <= 10:
                         new = map(lambda rec: rec.key, r.values)
-                        print('{0} -> {1}'.format(token, new))
                         self.corrected.append((token, new))
                         return new
             except rpcz.RpcDeadlineExceeded:
                 self.correct_deadline = True
-                print('!CORRECT DEADLINE')
-                pass
         return [token]
 
 
@@ -81,7 +78,6 @@ class Searcher(object):
         querysets = set([frozenset(normalise_drop(ts)) for ts in query_tokens])
         querysets = filter(lambda s: s, querysets)
         if not querysets: raise NotEnoughEntropy()
-        print(querysets)
 
         kw_docsets = defaultdict(lambda: frozenset())
         doc_poslists = defaultdict(lambda: defaultdict(lambda: []))
@@ -95,14 +91,10 @@ class Searcher(object):
                 self._TIME()
                 res = index.query(kw, max_mistakes=0, timeout=5)
                 if res.exact_total == 0:
-                    print('exact_total = 0')
                     try:
                         res = index.query(kw, max_mistakes=1, timeout=2)
-                        print('now exact_total = {0}'.format(res.exact_total))
                     except rpcz.RpcDeadlineExceeded:
                         self.extraquery_deadline = True
-                        print('!EXTRAQUERY DEADLINE')
-                        pass
                 self._TIME('index')
 
                 for record in res.values:
@@ -126,7 +118,6 @@ class Searcher(object):
             else:
                 docs &= matched_docs
             if not docs:
-                print('BREAKING')
                 break
             self._TIME('proc')
 
