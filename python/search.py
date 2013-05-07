@@ -76,13 +76,14 @@ class Searcher(object):
         index = self.index = IndexServer(server, store_path)
 
 
-        query_tokens = map(self.correct_token, tokens(query))
+        query_tokens = map(self.correct_token, normalise_gently(tokens(query)))
 
         querysets = set([frozenset(normalise_drop(ts)) for ts in query_tokens])
+        querysets = filter(lambda s: s, querysets)
         if not querysets: raise NotEnoughEntropy()
         print(querysets)
 
-        kw_docsets = defaultdict(lambda: set())
+        kw_docsets = defaultdict(lambda: frozenset())
         doc_poslists = defaultdict(lambda: defaultdict(lambda: []))
         self.freq = freq = defaultdict(lambda: Counter())
         docs = None
@@ -107,17 +108,19 @@ class Searcher(object):
                 for record in res.values:
                     key = record.key
                     if key in kw_docsets:
-                        matched_docs.add(kw_docsets[key])
+                        matched_docs |= kw_docsets[key]
                         continue
                     data = record.value.parts
 
                     docpostings = map(cPickle.loads, data)
 
+                    key_set = set()
                     for (sha1, positions) in docpostings:
-                        kw_docsets[key].add(sha1)
+                        key_set.add(sha1)
                         matched_docs.add(sha1)
                         doc_poslists[sha1][key].append(positions)
                         freq[key][sha1] += len(positions)
+                    kw_docsets[key] = frozenset(key_set)
             if docs is None:
                 docs = matched_docs
             else:
@@ -143,6 +146,7 @@ class Searcher(object):
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
         doc_headers = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1, 'title':1})
         self._TIME('mongo')
+        query_tokens = set([t for qs in query_tokens for t in qs])
         for d in doc_headers:
             score = 0
 
@@ -155,7 +159,6 @@ class Searcher(object):
                 score += idf[kw] * m
 
             # Prioritise title matches (our own heuristic)
-            query_tokens = set([t for qs in query_tokens for t in qs])
             keywords_bag = Counter(normalise_gently(query_tokens))
             title_tokens = normalise_gently(tokens(title))
             title_bag = Counter(title_tokens)
