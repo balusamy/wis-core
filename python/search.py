@@ -144,14 +144,20 @@ class Searcher(object):
 
                 def str(self):
                     result = []
-                    for i in range(self.start, self.end):
+                    prev_to = None
+                    for i in xrange(self.start, self.end):
                         if i < 0 or i >= len(tokens):
                             continue
+                        from_, to = tokens[i]
+                        if prev_to:
+                            result.append(text[prev_to:from_])
+                        s = text[from_:to]
                         if i in self.hili:
-                            result.append(hili(tokens[i]))
+                            result.append(hili(s))
                         else:
-                            result.append(tokens[i])
-                    return ' '.join(result)
+                            result.append(s)
+                        prev_to = to
+                    return ''.join(result)
 
             parts = []
             depth = 0
