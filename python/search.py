@@ -27,7 +27,7 @@ class IndexServer(object):
         store.location = store_name
         self.iserver.useStore(store, deadline_ms=5)
 
-    def query(self, query_word, max_mistakes=0, timeout=5, keys_only=False):
+    def query(self, query_word, max_mistakes=0, timeout=2, keys_only=False):
         query = index_pb.WordQuery()
         query.options.Clear()
         query.options.keysOnly = keys_only
@@ -37,12 +37,32 @@ class IndexServer(object):
 
 
 class Searcher(object):
-    def __init__(self, query, server='tcp://localhost:5555', store_path='enwiki',
-                 max_mistakes=1):
+    def correct_token(self, token):
+        index = self.index
+        if len(token) > 5:
+            try:
+                if index.query(token, max_mistakes=0, keys_only=True).exact_total == 0:
+                    r = index.query(token, max_mistakes=1, keys_only=True)
+                    if r.exact_total == 0:
+                        r = index.query(token, max_mistakes=2, keys_only=True)
+                    if 0 < r.exact_total <= 5:
+                        new = map(lambda rec: rec.key, r.values)
+                        print('{0} -> {1}'.format(token, new))
+                        self.corrected.append((token, new))
+                        return new
+            except rpcz.RpcDeadlineExceeded:
+                self.correct_deadline = True
+                print('!CORRECT DEADLINE')
+                pass
+        return [token]
+
+
+    def __init__(self, query, server='tcp://localhost:5555', store_path='enwiki'):
         k1 = 1.6
         b = 0.75
 
         self.timings = defaultdict(lambda: 0)
+        self.corrected = []
 
         with open('mongo.cred', 'rt') as f:
             MONGO_HOST = f.readline().strip()
@@ -53,39 +73,58 @@ class Searcher(object):
         self.mongo = MongoClient(MONGO_ADDRESS)
         self.db = self.mongo[MONGO_DB]
 
+        index = self.index = IndexServer(server, store_path)
 
-        query_tokens = tokens(query)
-        querywords = set(normalise_drop(query_tokens))
-        if not querywords: raise NotEnoughEntropy()
 
-        index = IndexServer(server, store_path)
+        query_tokens = map(self.correct_token, tokens(query))
 
-        matched_docsets = []
+        querysets = set([frozenset(normalise_drop(ts)) for ts in query_tokens])
+        if not querysets: raise NotEnoughEntropy()
+        print(querysets)
+
+        kw_docsets = defaultdict(lambda: set())
         doc_poslists = defaultdict(lambda: defaultdict(lambda: []))
         self.freq = freq = defaultdict(lambda: Counter())
+        docs = None
 
-        for kw in querywords:
-            self._TIME()
-            res = index.query(kw, max_mistakes=0)
-            if res.exact_total == 0:
-                print('exact_total = 0')
-                res = index.query(kw, max_mistakes=max_mistakes)
-                print('now exact_total = {0}'.format(res.exact_total))
-            self._TIME('index')
-
+        for queryset in querysets:
             matched_docs = set()
-            for record in res.values:
-                key = record.key
-                if key in freq: continue
-                data = record.value.parts
 
-                docpostings = map(cPickle.loads, data)
+            for kw in queryset:
+                self._TIME()
+                res = index.query(kw, max_mistakes=0, timeout=5)
+                if res.exact_total == 0:
+                    print('exact_total = 0')
+                    try:
+                        res = index.query(kw, max_mistakes=1, timeout=2)
+                        print('now exact_total = {0}'.format(res.exact_total))
+                    except rpcz.RpcDeadlineExceeded:
+                        self.extraquery_deadline = True
+                        print('!EXTRAQUERY DEADLINE')
+                        pass
+                self._TIME('index')
 
-                for (sha1, positions) in docpostings:
-                    matched_docs.add(sha1)
-                    doc_poslists[sha1][key].append(positions)
-                    freq[key][sha1] += len(positions)
-            matched_docsets.append(matched_docs)
+                for record in res.values:
+                    key = record.key
+                    if key in kw_docsets:
+                        matched_docs.add(kw_docsets[key])
+                        continue
+                    data = record.value.parts
+
+                    docpostings = map(cPickle.loads, data)
+
+                    for (sha1, positions) in docpostings:
+                        kw_docsets[key].add(sha1)
+                        matched_docs.add(sha1)
+                        doc_poslists[sha1][key].append(positions)
+                        freq[key][sha1] += len(positions)
+            if docs is None:
+                docs = matched_docs
+            else:
+                docs &= matched_docs
+            if not docs:
+                print('BREAKING')
+                break
             self._TIME('proc')
 
 
@@ -96,7 +135,6 @@ class Searcher(object):
         N = self.N = self.db.articles.count()
         idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in freq}
 
-        docs = set.intersection(*matched_docsets) if matched_docsets else set()
         self.poslists = {sha1: merge_sorted([l for klists in doc_poslists[sha1].values() for l in klists]) for sha1 in docs}
         self._TIME('proc')
 
@@ -117,6 +155,7 @@ class Searcher(object):
                 score += idf[kw] * m
 
             # Prioritise title matches (our own heuristic)
+            query_tokens = set([t for qs in query_tokens for t in qs])
             keywords_bag = Counter(normalise_gently(query_tokens))
             title_tokens = normalise_gently(tokens(title))
             title_bag = Counter(title_tokens)
