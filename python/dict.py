@@ -19,6 +19,7 @@ from utils import grouper
 parser = argparse.ArgumentParser(description='Populate index databases.')
 parser.add_argument('dumpfile', help='dump-file path')
 parser.add_argument('-r', '--round', type=int, default=50, help='number of articles to process during one round', metavar='NUMBER')
+parser.add_argument('--skip', type=int, default=0, help='skip this number of articles')
 args = parser.parse_args()
 
 
@@ -44,12 +45,16 @@ try:
     with BZ2File(args.dumpfile, 'r') as f:
         parser = parse_wiki.articles(f)
 
+        skip = args.skip
+        for i in range(skip):
+            parser.next()
+
         time_preproc = 0
         time_iserv = 0
         last_time = time()
         articles_count = 0
         this_round_count = 0
-        processed_articles = 0
+        processed_articles = skip
 
         for docgroup in grouper(args.round, parser):
 
