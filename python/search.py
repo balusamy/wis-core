@@ -140,58 +140,68 @@ class Searcher(object):
         self._TIME()
 
         positions = self.poslists[sha1]
-        doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1, 'tokens':1})
+        doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1,
+            'text':1, 'tokens':1, 'tokens_title':1})
 
-        text = doc['text']
-        tokens = doc['tokens']
+        title_tokens = doc['tokens_title']
 
         events = []
-        for pos in positions:
-            if pos > 0:
-                events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
+        title_events = [(0, -1)]
+        for pos in (p for p in positions if p >= 0):
+            events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
         events.sort()
+        for pos in (-1 - p for p in positions if p < 0):
+            title_events.append((pos, 0))
+        title_events.append((len(title_tokens), 1))
 
         class Part(object):
-            def __init__(self, start):
+            def __init__(self, start, tokens, text):
                 self.start = start
                 self.hili = set()
                 self.end = None
+                self.tokens = tokens
+                self.text = text
 
             def str(self):
                 result = []
                 prev_to = None
                 for i in xrange(self.start, self.end):
-                    if i < 0 or i >= len(tokens):
+                    if i < 0 or i >= len(self.tokens):
                         continue
-                    from_, to = tokens[i]
+                    from_, to = self.tokens[i]
                     if prev_to:
-                        result.append(text[prev_to:from_])
-                    s = text[from_:to]
+                        result.append(self.text[prev_to:from_])
+                    s = self.text[from_:to]
                     if i in self.hili:
                         result.append(hili(s))
                     else:
                         result.append(s)
                     prev_to = to
-                return ''.join(result)
+                return u''.join(result)
 
-        parts = []
-        depth = 0
-        for (p, e) in events:
-            if e == -1:
-                if depth == 0:
-                    parts.append(Part(p))
-                depth += 1
-            elif e == 0:
-                parts[-1].hili.add(p)
-            else:
-                depth -= 1
-                if depth == 0:
-                    parts[-1].end = p
+        def flatten_text(events, tokens, text):
+            parts = []
+            depth = 0
+            for (p, e) in events:
+                if e == -1:
+                    if depth == 0:
+                        parts.append(Part(p, tokens, text))
+                    depth += 1
+                elif e == 0:
+                    parts[-1].hili.add(p)
+                else:
+                    depth -= 1
+                    if depth == 0:
+                        parts[-1].end = p
+            return (p.str() for p in parts)
+
+        title = next(flatten_text(title_events, title_tokens, doc['title']))
+        text_parts = flatten_text(events, doc['tokens'], doc['text'])
 
         self._TIME('render')
 
-        return {'title': doc['title'],
-                'parts': [p.str() for p in parts]}
+        return {'title': title,
+                'parts': text_parts}
 
 
     def _TIME(self, label=None):
