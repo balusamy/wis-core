@@ -96,7 +96,7 @@ class Searcher(object):
         idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in freq}
 
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
-        self.poslists = {sha1: merge_sorted(doc_poslists[sha1][kw]) for sha1 in docs for kw in freq}
+        self.poslists = {sha1: merge_sorted([l for klists in doc_poslists[sha1].values() for l in klists]) for sha1 in docs}
         self._TIME('proc')
 
         # Here comes BM25 to save the world!
