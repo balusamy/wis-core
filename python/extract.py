@@ -38,6 +38,7 @@
 
 import re
 from htmlentitydefs import name2codepoint
+from cgi import escape
 
 
 ### PARAMS ####################################################################
@@ -52,7 +53,7 @@ acceptedNamespaces = set(['w', 'wikt'])
 # Drop these elements from article text
 #
 discardElements = set([
-        'gallery', 'timeline', 'noinclude', 'pre',
+        'gallery', 'timeline', 'noinclude',
         'table', 'tr', 'td', 'th', 'caption',
         'form', 'input', 'select', 'option', 'textarea',
         'ul', 'li', 'ol', 'dl', 'dt', 'dd', 'menu', 'dir',
@@ -82,10 +83,10 @@ ignoredTags = set([
         'a', 'b', 'big', 'blockquote', 'center', 'cite', 'div', 'em',
         'font', 'h1', 'h2', 'h3', 'h4', 'hiero', 'i', 'kbd', 'nowiki',
         'p', 'plaintext', 's', 'small', 'span', 'strike', 'strong',
-        'sub', 'sup', 'tt', 'u', 'var',
+        'sub', 'sup', 'tt', 'u', 'var', 'code', 'syntaxhilight', 'pre',
 ])
 
-placeholder_tags = {'math':'formula', 'code':'codice'}
+placeholder_tags = {'math':'formula'}
 
 
 ##
@@ -394,4 +395,5 @@ def compact(text):
 
 
 def unwiki(text):
-    return '\n'.join(compact(clean(text)))
+    t = '\n'.join(compact(clean(text)))
+    return escape(t)

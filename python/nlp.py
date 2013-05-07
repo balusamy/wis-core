@@ -69,7 +69,7 @@ word_tokeniser = AwesomeTokenizer(BetterTreebankWordTokenizer())
 
 snowball = EnglishStemmer()
 stop = filter(lambda w: len(w) > 2, stopwords.words('english')) + [
-            "n't",
+            "n't", 'amp'
        ]
 
 def has_char(w):
