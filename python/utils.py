@@ -19,4 +19,4 @@ def tokens(string, ilist=None):
     return [string[f:t] for f, t in ilist]
 
 def negate_tokens(tokens):
-    return [(-i, w) for i, w in tokens]
+    return [(-i-1, w) for i, w in tokens]
