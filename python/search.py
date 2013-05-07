@@ -115,7 +115,7 @@ class Searcher(object):
         self._TIME('ranking')
 
 
-    def show_documents(self, n=10, hili=lambda w:w):
+    def show_documents(self, n=10, hili=lambda w: '{' + w + '}'):
         if not self.scores: return None
 
         NUM_BEFORE = 5
