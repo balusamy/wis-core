@@ -13,7 +13,7 @@ import sys
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
-from nlp import normalise_drop
+from nlp import normalise_drop, normalise_gently
 from utils import merge_sorted, tokens
 
 
@@ -52,7 +52,8 @@ class Searcher(object):
         self.db = self.mongo[MONGO_DB]
 
 
-        keywords = set(normalise_drop(tokens(query)))
+        query_tokens = tokens(query)
+        keywords = set(normalise_drop(query_tokens))
         if not keywords: raise NotEnoughEntropy()
 
         index = IndexServer(server, store_path)
@@ -96,17 +97,34 @@ class Searcher(object):
         # Here comes BM52 to save the world!
         scores = []
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
-        doc_sizes = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1})
+        doc_headers = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1, 'title':1})
         self._TIME('mongo')
-        for d in doc_sizes:
+        for d in doc_headers:
             score = 0
 
             sha1 = d['_id']
             size = d['size']
+            title = d['title']
 
             for kw in keywords:
                 m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
                 score += idf[kw] * m
+
+            # Prioritise title matches (our own heuristic)
+            keywords_bag = Counter(normalise_gently(query_tokens))
+            title_tokens = normalise_gently(tokens(title))
+            title_bag = Counter(title_tokens)
+            both = keywords_bag & title_bag
+            both_c = sum(both.values())
+            ratio = both_c / (len(query_tokens) + len(title_tokens) - both_c)
+            score += 10 * ratio
+
+            tokens_title = normalise_drop(title_tokens)
+            title_set = set(tokens_title)
+            both = keywords & title_set
+            ratio = len(both) / len(keywords)
+            score += 10 * ratio
+
             scores.append((sha1, score))
             self._TIME('ranking')
 
@@ -129,7 +147,8 @@ class Searcher(object):
 
         events = []
         for pos in positions:
-            events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
+            if pos > 0:
+                events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
         events.sort()
 
         class Part(object):

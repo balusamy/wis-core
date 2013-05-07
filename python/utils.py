@@ -17,3 +17,6 @@ def merge_sorted(lists):
 def tokens(string, ilist=None):
     if ilist is None: ilist = itokenise(string)
     return [string[f:t] for f, t in ilist]
+
+def negate_tokens(tokens):
+    return [(-i, w) for i, w in tokens]

@@ -100,5 +100,9 @@ def normalise_drop(words):
     words = map(snowball.stem, words)
     return words
 
+def normalise_gently(words):
+    words = map(lambda w: w.lower(), words)
+    return words
+
 def stem(w):
     return snowball.stem(w)
