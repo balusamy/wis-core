@@ -116,7 +116,7 @@ try:
 
 
                 text = unwiki(text)
-                (text, itokens) = itokenise(text)
+                itokens = itokenise(text)
                 itokens = list(itokens)
                 tokens = normalise(utils.tokens(text, itokens))
 

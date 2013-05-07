@@ -6,18 +6,54 @@ from nltk.corpus import stopwords
 import re
 
 
+class BetterTreebankWordTokenizer(TreebankWordTokenizer):
+    def tokenize(self, text):
+        #punctuation
+        text = re.sub(r'([:,])([^\d])', r' \1 \2', text)
+        text = re.sub(r'\.\.\.', r' ... ', text)
+        text = re.sub(r'[;@#$%&]', r' \g<0> ', text)
+        text = re.sub(r'([^\.])(\.)([\]\)}>"\']*)\s*$', r'\1 \2\3 ', text)
+        text = re.sub(r'[?!]', r' \g<0> ', text)
+
+        text = re.sub(r"([^'])' ", r"\1 ' ", text)
+
+        #parens, brackets, etc.
+        text = re.sub(r'[\]\[\(\)\{\}\<\>]', r' \g<0> ', text)
+        text = re.sub(r'--', r' -- ', text)
+
+        #add extra space to make things easier
+        text = " " + text + " "
+
+        #quotes
+        text = re.sub(r"(\"|''|``)", r' \1 ', text)
+
+        text = re.sub(r"([^' ])('[sS]|'[mM]|'[dD]|') ", r"\1 \2 ", text)
+        text = re.sub(r"([^' ])('ll|'re|'ve|n't|) ", r"\1 \2 ", text)
+        text = re.sub(r"([^' ])('LL|'RE|'VE|N'T|) ", r"\1 \2 ", text)
+
+        for regexp in self.CONTRACTIONS2:
+            text = regexp.sub(r' \1 \2 ', text)
+        for regexp in self.CONTRACTIONS3:
+            text = regexp.sub(r' \1 \2 ', text)
+
+        # We are not using CONTRACTIONS4 since
+        # they are also commented out in the SED scripts
+        # for regexp in self.CONTRACTIONS4:
+        #     text = regexp.sub(r' \1 \2 \3 ', text)
+
+        text = re.sub(" +", " ", text)
+        text = text.strip()
+
+        #add space at end to match up with MacIntyre's output (for debugging)
+        if text != "":
+            text += " "
+
+        return text.split()
+
+
 class AwesomeTokenizer(TokenizerI):
     def __init__(self, tokeniser):
         self._toker = tokeniser
-
-    @staticmethod
-    def prepare(text):
-        ## They'll do those substitutions, so I'm doing them in advance
-        ## to be able to find separate tokens
-        text = re.sub(r'^\"', r'``', text)
-        text = re.sub(r'([ (\[{<])"', r'\1 `` ', text)
-        text = re.sub(r'"', " '' ", text)
-        return text
 
     def span_tokenize(self, text):
         pos = 0
@@ -29,7 +65,7 @@ class AwesomeTokenizer(TokenizerI):
 
 
 sent_tokeniser = load('tokenizers/punkt/english.pickle')
-word_tokeniser = AwesomeTokenizer(TreebankWordTokenizer())
+word_tokeniser = AwesomeTokenizer(BetterTreebankWordTokenizer())
 
 snowball = EnglishStemmer()
 stop = filter(lambda w: len(w) > 2, stopwords.words('english')) + [
@@ -45,12 +81,9 @@ def is_good_word(w):
     return len(w) > 2 and has_char(w)
 
 def itokenise(text):
-    text = word_tokeniser.prepare(text)
-    def gen():
-        for s_s, s_e in sent_tokeniser.span_tokenize(text):
-            for w_s, w_e in word_tokeniser.span_tokenize(text[s_s:s_e]):
-                yield (s_s + w_s, s_s + w_e)
-    return (text, gen())
+    for s_s, s_e in sent_tokeniser.span_tokenize(text):
+        for w_s, w_e in word_tokeniser.span_tokenize(text[s_s:s_e]):
+            yield (s_s + w_s, s_s + w_e)
 
 def normalise(words):
     words = enumerate(words)

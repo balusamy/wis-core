@@ -15,5 +15,5 @@ def merge_sorted(lists):
     return sorted(set.union(*map(set,lists)))
 
 def tokens(string, ilist=None):
-    if ilist is None: string, ilist = itokenise(string)
+    if ilist is None: ilist = itokenise(string)
     return [string[f:t] for f, t in ilist]
