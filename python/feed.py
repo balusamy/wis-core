@@ -16,7 +16,7 @@ import index_server_rpcz as index_rpcz
 from nlp import itokenise, normalise
 import parse_wiki
 import utils
-from utils import grouper
+from utils import grouper, negate_tokens
 
 
 parser = argparse.ArgumentParser(description='Populate index databases.')
@@ -116,16 +116,18 @@ try:
 
 
                 text = unwiki(text)
-                itokens = itokenise(text)
-                itokens = list(itokens)
-                tokens = normalise(utils.tokens(text, itokens))
+                itokens = list(itokenise(text))
+                itokens_title = list(itokenise(title))
 
-                if not tokens: continue
+                tokens = normalise(utils.tokens(text, itokens))
+                tokens_title = negate_tokens(normalise(utils.tokens(title, itokens_title)))
+                tokens_all = tokens_title + tokens
+                if not tokens_all: continue
 
                 article_tokens = Counter()
 
                 thisdoc_postings = defaultdict(lambda: [])
-                for i, w in tokens:
+                for i, w in tokens_all:
                     article_tokens[w] += 1
                     thisdoc_postings[w].append(i)
                 for w, l in thisdoc_postings.iteritems():
@@ -134,6 +136,7 @@ try:
                 docs.append({
                     '_id': sha1,
                     'title': title,
+                    'tokens_title': itokens_title,
                     'text': text,
                     'tokens': itokens,
                     'size': len(itokens),
