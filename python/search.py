@@ -188,6 +188,10 @@ def show_results(searcher, n=10, skip=0):
     for doc in searcher.results[skip:skip+n]:
         yield searcher.show_document(doc)
 
+def show_titles(searcher, n=10, skip=0):
+    for res in show_results(searcher, n, skip):
+        yield res['title']
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Make an index query.')
