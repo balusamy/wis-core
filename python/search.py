@@ -116,8 +116,8 @@ class Searcher(object):
         self.results = map(lambda p: p[0], self.scores)
 
     def show_document(self, sha1, hili=lambda w: '{' + w + '}'):
-        NUM_BEFORE = 5
-        NUM_AFTER = 5
+        NUM_BEFORE = 10
+        NUM_AFTER = 15
 
         self._TIME()
 
