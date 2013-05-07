@@ -94,7 +94,7 @@ class Searcher(object):
         self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
         self._TIME('proc')
 
-        # Here comes BM52 to save the world!
+        # Here comes BM25 to save the world!
         scores = []
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
         doc_headers = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1, 'title':1})
@@ -107,7 +107,7 @@ class Searcher(object):
             title = d['title']
 
             for kw in keywords:
-                m = (freq[kw][sha1] * (k1 + 1)) / (freq[kw][sha1] + k1 * (1 - b + b * size / avg_size))
+                m = (freq[kw][sha1] / size  * (k1 + 1)) / (freq[kw][sha1] / size + k1 * (1 - b + b * size / avg_size))
                 score += idf[kw] * m
 
             # Prioritise title matches (our own heuristic)
