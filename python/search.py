@@ -39,13 +39,13 @@ class IndexServer(object):
 class Searcher(object):
     def correct_token(self, token):
         index = self.index
-        if len(token) > 5:
+        if len(token) >= 5:
             try:
                 if index.query(token, max_mistakes=0, keys_only=True).exact_total == 0:
                     r = index.query(token, max_mistakes=1, keys_only=True)
                     if r.exact_total == 0:
                         r = index.query(token, max_mistakes=2, keys_only=True)
-                    if 0 < r.exact_total <= 5:
+                    if 0 < r.exact_total <= 10:
                         new = map(lambda rec: rec.key, r.values)
                         print('{0} -> {1}'.format(token, new))
                         self.corrected.append((token, new))
