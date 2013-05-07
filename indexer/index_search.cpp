@@ -52,14 +52,19 @@ void IndexSearch::wordQuery(const WordQuery& request, rpcz::reply<QueryResult> r
         auto db = impl.store->db();
         ::indexer::index::results_t results;
         index->search(request.word(), request.maxcorrections(), true, results);
+        bool keys_only = request.options().keysonly();
         QueryResult pb_results;
         pb_results.set_exact_total(results.size());
         for (std::string const& result : results) {
             IndexRecord* record = pb_results.add_values();
             std::cout << "  result: " << result << std::endl;
             record->set_key(result);
-            std::string const& s = db->get(result);
-            record->mutable_value()->ParseFromString(s);
+            if (!keys_only) {
+                std::string const& s = db->get(result);
+                record->mutable_value()->ParseFromString(s);
+            } else {
+                record->mutable_value()->Clear();
+            }
         }
         reply.send(pb_results);
     } RPC_REPORT_EXCEPTIONS(reply)

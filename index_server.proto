@@ -15,6 +15,7 @@ message UseStore {
 message QueryOptions {
   optional int32 limit = 1 [default = 1000];
   optional int32 offset = 2 [default = 0];
+  optional bool keysOnly = 3 [default = false];
 }
 
 message WordQuery {
