@@ -242,6 +242,8 @@ if __name__ == '__main__':
                         help='the request timeout')
     parser.add_argument('--raw', action='store_true', default=False,
                         help='Bypass the Searcher')
+    parser.add_argument('--keys-only', action='store_true', default=False,
+                        help='Show only the index keys found, not postings')
     args = parser.parse_args()
 
     if not args.raw:
@@ -257,5 +259,8 @@ if __name__ == '__main__':
     if result.HasField('exact_total'):
         print("Total results: {0}".format(result.exact_total))
     for i, record in enumerate(result.values):
-        print("Result #{0}: {1} = {2}".format(i, record.key.encode("UTF-8"), record.value))
+        if args.keys_only:
+            print("Result #{0}: {1}".format(i, record.key.encode("UTF-8")))
+        else:
+            print("Result #{0}: {1} = {2}".format(i, record.key.encode("UTF-8"), record.value))
     print("Done")
