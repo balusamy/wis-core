@@ -200,7 +200,8 @@ class Searcher(object):
 
         self._TIME('render')
 
-        return {'title': title,
+        return {'title': doc['title'],
+                'display_title': title,
                 'parts': text_parts}
 
 
