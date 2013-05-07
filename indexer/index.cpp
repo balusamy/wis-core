@@ -74,7 +74,7 @@ void index::search(boost::string_ref const& data, size_t k, bool has_transp, res
                             has_transp, results);
                 }
                 boost::reverse(copy);
-                for (; k2-- > 0; ++k1) {
+                for (; k2 != static_cast<size_t>(-1); ++k1, --k2) {
                     impl.reverse.search_split(copy, switch_len_1, k2, false, k1, true,
                             has_transp, rev_results);
                 }
@@ -90,7 +90,7 @@ void index::search(boost::string_ref const& data, size_t k, bool has_transp, res
                     has_transp, results);
         }
         boost::reverse(copy);
-        for (; k2-- > 0; ++k1) {
+        for (; k2 != static_cast<size_t>(-1); ++k1, --k2) {
             impl.reverse.search_split(copy, switch_len_1, k2, false, k1, true,
                     has_transp, rev_results);
         }
