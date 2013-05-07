@@ -40,6 +40,7 @@ void index::insert(boost::string_ref const& data)
     implementation& impl = **this;
     boost::unique_lock<boost::shared_mutex> lock(impl.mutex);
     std::string s(data);
+    // TODO: handle EOS in the trie?
     s += EOS;
     impl.forward.insert(s);
     std::reverse(s.begin(), --s.end());
@@ -103,10 +104,7 @@ void index::search(boost::string_ref const& data, size_t k, bool has_transp, res
 
         boost::erase(results, boost::unique<boost::return_found_end>(boost::sort(results)));
     } else {
-        // TODO: handle EOS in the trie?
-        std::string word(data.begin(), data.end());
-        word += EOS;
-        impl.forward.search_exact(word, results);
+        impl.forward.search_exact(data, results);
     }
 }
 

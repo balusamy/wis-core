@@ -541,8 +541,7 @@ struct pimpl<trie>::implementation
         string_ref s = full_str.substr(start_pos);
         string_ref prefix = full_str.substr(0, start_pos);
         if (s.empty()) {
-            // EOS hack :(
-            results.push_back(std::string(full_str.data(), full_str.size() - 1));
+            append_result(results, full_str);
             return;
         }
 
@@ -563,8 +562,7 @@ struct pimpl<trie>::implementation
         string_ref rest = s.substr(maxlen);
 
         if (rest.empty()) {
-            // EOS hack :(
-            results.push_back(std::string(full_str.data(), full_str.size() - 1));
+            append_result(results, full_str);
             return;
         } else {
             auto child_ref = resolve_node(match->ptr, ref.part());
@@ -805,8 +803,9 @@ void trie::insert(boost::string_ref const& data)
 void trie::search_exact(boost::string_ref const& data, results_t& results)
 {
     implementation& impl = **this;
+    std::string pattern = impl.append_eos(data);
     auto root = impl.resolve_external_ref(impl.head);
-    impl.do_search_exact(root, data, 0, results);
+    impl.do_search_exact(root, pattern, 0, results);
 }
 
 void trie::search(boost::string_ref const& data, size_t k, bool has_transp, results_t& results)
