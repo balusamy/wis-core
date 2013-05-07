@@ -83,7 +83,7 @@ ignoredTags = set([
         'a', 'b', 'big', 'blockquote', 'center', 'cite', 'div', 'em',
         'font', 'h1', 'h2', 'h3', 'h4', 'hiero', 'i', 'kbd', 'nowiki',
         'p', 'plaintext', 's', 'small', 'span', 'strike', 'strong',
-        'sub', 'sup', 'tt', 'u', 'var', 'code', 'syntaxhilight', 'pre',
+        'sub', 'sup', 'tt', 'u', 'var', 'code', 'syntaxhighlight', 'pre',
 ])
 
 placeholder_tags = {'math':'formula'}
