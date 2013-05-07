@@ -27,9 +27,10 @@ class IndexServer(object):
         store.location = store_name
         self.iserver.useStore(store, deadline_ms=5)
 
-    def query(self, query_word, max_mistakes=0, timeout=5):
+    def query(self, query_word, max_mistakes=0, timeout=5, keys_only=False):
         query = index_pb.WordQuery()
         query.options.Clear()
+        query.options.keysOnly = keys_only
         query.word = query_word
         query.maxCorrections = max_mistakes
         return self.iserver.wordQuery(query, deadline_ms=timeout)
@@ -255,7 +256,8 @@ if __name__ == '__main__':
         sys.exit(0)
 
     index = IndexServer(args.server, args.index)
-    result = index.query(unicode(args.query, "UTF-8"), args.mistakes, args.timeout)
+    result = index.query(unicode(args.query, "UTF-8"), args.mistakes, args.timeout,
+            args.keys_only)
     if result.HasField('exact_total'):
         print("Total results: {0}".format(result.exact_total))
     for i, record in enumerate(result.values):
