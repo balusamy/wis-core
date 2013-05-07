@@ -37,7 +37,7 @@ class IndexServer(object):
 
 class Searcher(object):
     def __init__(self, query, server='tcp://localhost:5555', store_path='enwiki',
-                 max_mistakes=0):
+                 max_mistakes=1):
         k1 = 1.6
         b = 0.75
 
@@ -54,32 +54,36 @@ class Searcher(object):
 
 
         query_tokens = tokens(query)
-        keywords = set(normalise_drop(query_tokens))
-        if not keywords: raise NotEnoughEntropy()
+        querywords = set(normalise_drop(query_tokens))
+        if not querywords: raise NotEnoughEntropy()
 
         index = IndexServer(server, store_path)
 
         matched_docsets = []
-        doc_poslists = defaultdict(lambda: [])
-        freq = defaultdict(lambda: Counter())
+        doc_poslists = defaultdict(lambda: defaultdict(lambda: []))
+        self.freq = freq = defaultdict(lambda: Counter())
 
-        for kw in keywords:
+        for kw in querywords:
             self._TIME()
-            res = index.query(kw, max_mistakes=max_mistakes).values
+            res = index.query(kw, max_mistakes=0)
+            if res.exact_total == 0:
+                print('exact_total = 0')
+                res = index.query(kw, max_mistakes=max_mistakes)
+                print('now exact_total = {0}'.format(res.exact_total))
             self._TIME('index')
 
-            if not res:
-                data = []
-            else:
-                data = res[0].value.parts
-
-            docpostings = map(cPickle.loads, data)
-
             matched_docs = set()
-            for (sha1, positions) in docpostings:
-                matched_docs.add(sha1)
-                doc_poslists[sha1].append(positions)
-                freq[kw][sha1] += len(positions)
+            for record in res.values:
+                key = record.key
+                if key in freq: continue
+                data = record.value.parts
+
+                docpostings = map(cPickle.loads, data)
+
+                for (sha1, positions) in docpostings:
+                    matched_docs.add(sha1)
+                    doc_poslists[sha1][key].append(positions)
+                    freq[key][sha1] += len(positions)
             matched_docsets.append(matched_docs)
             self._TIME('proc')
 
@@ -89,10 +93,10 @@ class Searcher(object):
         doc_count.update({kw: len(freq[kw]) for kw in freq})
 
         N = self.N = self.db.articles.count()
-        idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in keywords}
+        idf = {kw: max(0.4, log((N - doc_count[kw] + 0.5) / (doc_count[kw] + 0.5))) for kw in freq}
 
         docs = set.intersection(*matched_docsets) if matched_docsets else set()
-        self.poslists = {sha1: merge_sorted(doc_poslists[sha1]) for sha1 in docs}
+        self.poslists = {sha1: merge_sorted(doc_poslists[sha1][kw]) for sha1 in docs for kw in freq}
         self._TIME('proc')
 
         # Here comes BM25 to save the world!
@@ -107,7 +111,7 @@ class Searcher(object):
             size = d['size']
             title = d['title']
 
-            for kw in keywords:
+            for kw in freq:
                 m = (freq[kw][sha1] / size  * (k1 + 1)) / (freq[kw][sha1] / size + k1 * (1 - b + b * size / avg_size))
                 score += idf[kw] * m
 
@@ -122,8 +126,8 @@ class Searcher(object):
 
             tokens_title = normalise_drop(title_tokens)
             title_set = set(tokens_title)
-            both = keywords & title_set
-            ratio = len(both) / len(keywords)
+            both = set(freq.keys()) & title_set
+            ratio = len(both) / len(freq)
             score += 10 * ratio
 
             scores.append((sha1, score))
