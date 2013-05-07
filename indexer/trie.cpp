@@ -683,7 +683,7 @@ struct pimpl<trie>::implementation
                         if (!is_leaf) {
                             auto child_ref = resolve_node(child.ptr, ref.part());
                             do_search(child_ref, scrap, proc2, new_ctx2,
-                                    exact_dist2, results);
+                                    exact_dist2, results, start_pos + 1);
                         } else if (final2 && 
                                 (!exact_dist2 || dist2 == proc2.max_corrections())) {
                             append_result(results, scrap);
