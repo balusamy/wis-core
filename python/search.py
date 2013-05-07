@@ -113,71 +113,67 @@ class Searcher(object):
         self._TIME()
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
         self._TIME('ranking')
+        self.results = map(lambda p: p[0], self.scores)
 
-
-    def show_documents(self, n=10, hili=lambda w: '{' + w + '}'):
-        if not self.scores: return None
-
+    def show_document(self, sha1, hili=lambda w: '{' + w + '}'):
         NUM_BEFORE = 5
         NUM_AFTER = 5
 
         self._TIME()
 
-        result = []
-        for sha1, score in self.scores[:n]:
-            positions = self.poslists[sha1]
-            doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1, 'tokens':1})
+        positions = self.poslists[sha1]
+        doc = self.db.articles.find_one({'_id': sha1}, {'_id':0, 'title':1, 'text':1, 'tokens':1})
 
-            text = doc['text']
-            tokens = doc['tokens']
+        text = doc['text']
+        tokens = doc['tokens']
 
-            events = []
-            for pos in positions:
-                events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
-            events.sort()
+        events = []
+        for pos in positions:
+            events.extend([(pos - NUM_BEFORE, -1), (pos, 0), (pos + NUM_AFTER + 1, 1)])
+        events.sort()
 
-            class Part(object):
-                def __init__(self, start):
-                    self.start = start
-                    self.hili = set()
-                    self.end = None
+        class Part(object):
+            def __init__(self, start):
+                self.start = start
+                self.hili = set()
+                self.end = None
 
-                def str(self):
-                    result = []
-                    prev_to = None
-                    for i in xrange(self.start, self.end):
-                        if i < 0 or i >= len(tokens):
-                            continue
-                        from_, to = tokens[i]
-                        if prev_to:
-                            result.append(text[prev_to:from_])
-                        s = text[from_:to]
-                        if i in self.hili:
-                            result.append(hili(s))
-                        else:
-                            result.append(s)
-                        prev_to = to
-                    return ''.join(result)
+            def str(self):
+                result = []
+                prev_to = None
+                for i in xrange(self.start, self.end):
+                    if i < 0 or i >= len(tokens):
+                        continue
+                    from_, to = tokens[i]
+                    if prev_to:
+                        result.append(text[prev_to:from_])
+                    s = text[from_:to]
+                    if i in self.hili:
+                        result.append(hili(s))
+                    else:
+                        result.append(s)
+                    prev_to = to
+                return ''.join(result)
 
-            parts = []
-            depth = 0
-            for (p, e) in events:
-                if e == -1:
-                    if depth == 0:
-                        parts.append(Part(p))
-                    depth += 1
-                elif e == 0:
-                    parts[-1].hili.add(p)
-                else:
-                    depth -= 1
-                    if depth == 0:
-                        parts[-1].end = p
+        parts = []
+        depth = 0
+        for (p, e) in events:
+            if e == -1:
+                if depth == 0:
+                    parts.append(Part(p))
+                depth += 1
+            elif e == 0:
+                parts[-1].hili.add(p)
+            else:
+                depth -= 1
+                if depth == 0:
+                    parts[-1].end = p
 
-            result.append({'title': doc['title'],
-                'parts': [p.str() for p in parts]})
         self._TIME('render')
 
-        return result
+        return {'title': doc['title'],
+                'parts': [p.str() for p in parts]}
+
 
     def _TIME(self, label=None):
         if label:
@@ -186,6 +182,11 @@ class Searcher(object):
 
 class NotEnoughEntropy(ValueError):
     pass
+
+
+def show_results(searcher, n=10, skip=0):
+    for doc in searcher.results[skip:skip+n]:
+        yield searcher.show_document(doc)
 
 
 if __name__ == '__main__':
@@ -207,7 +208,7 @@ if __name__ == '__main__':
     if not args.raw:
         s = Searcher(args.query, server=args.server, store_path=args.index,
                      max_mistakes=args.mistakes)
-        for doc in s.show_documents(hili=lambda w: "|{0}|".format(w)):
+        for doc in show_results(s):
             text = '\n'.join((u"... {0} ...".format(p) for p in doc['parts']))
             print(u"Title: {0}\n{1}\n\n".format(doc['title'], text))
         sys.exit(0)
