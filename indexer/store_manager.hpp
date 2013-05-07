@@ -26,7 +26,13 @@ struct store_manager final
     : public boost::noncopyable
     , private pimpl<store_manager>::pointer_semantics
 {
-    store_manager();
+    struct options_t
+    {
+        std::string mongodb_url;
+        std::string mongodb_name;
+    };
+
+    store_manager(options_t const& options);
     ~store_manager();
 
     typedef boost::shared_ptr<store> store_ptr;

@@ -95,6 +95,11 @@ struct pimpl<indexer::store>::implementation
 template <>
 struct pimpl<indexer::store_manager>::implementation
 {
+    implementation(indexer::store_manager::options_t const& options)
+        : options(options)
+    {}
+
+    indexer::store_manager::options_t options;
     boost::unordered_map<fs::path, boost::weak_ptr<indexer::store>> stores;
 };
 
@@ -131,7 +136,8 @@ boost::shared_ptr<value_db> store::db() const
     return (*this)->db;
 }
 
-store_manager::store_manager()
+store_manager::store_manager(options_t const& options)
+    : base(options)
 {
 }
 
