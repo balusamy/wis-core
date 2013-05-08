@@ -39,6 +39,8 @@ class IndexServer(object):
 class Searcher(object):
     def correct_token(self, token):
         index = self.index
+        orig_token = token
+        token = token.lower()
         if len(token) > 2 and has_char(token):
             try:
                 if index.query(token, max_mistakes=0, keys_only=True).exact_total == 0:
@@ -48,12 +50,12 @@ class Searcher(object):
                             r = index.query(token, max_mistakes=2, keys_only=True)
                         if 0 < r.exact_total <= 10:
                             new = map(lambda rec: rec.key, r.values)
-                            self.corrected.append((token, new))
+                            self.corrected.append((orig_token, new))
                             return new
                         else:
-                            self.corrected.append((token, None))
+                            self.corrected.append((orig_token, None))
                     except rpcz.RpcDeadlineExceeded:
-                        self.corrected.append((token, None))
+                        self.corrected.append((orig_token, None))
                         raise
             except rpcz.RpcDeadlineExceeded:
                 self.correct_deadline = True
@@ -79,7 +81,7 @@ class Searcher(object):
         index = self.index = IndexServer(server, store_path)
 
 
-        query_tokens = map(self.correct_token, normalise_gently(tokens(query)))
+        query_tokens = map(self.correct_token, tokens(query))
 
         querysets = set([frozenset(normalise_drop(ts)) for ts in query_tokens])
         querysets = filter(lambda s: s, querysets)
@@ -156,7 +158,7 @@ class Searcher(object):
                 score += idf[kw] * m
 
             # Prioritise title matches (our own heuristic)
-            keywords_bag = Counter(normalise_gently(query_tokens))
+            keywords_bag = Counter(query_tokens)
             title_tokens = normalise_gently(tokens(title))
             title_bag = Counter(title_tokens)
             both = keywords_bag & title_bag
