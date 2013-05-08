@@ -14,7 +14,7 @@ import sys
 
 import index_server_rpcz as index_rpcz
 import index_server_pb2 as index_pb
-from nlp import normalise_drop, normalise_gently
+from nlp import normalise_drop, normalise_gently, has_char
 from utils import merge_sorted, tokens
 
 
@@ -39,16 +39,22 @@ class IndexServer(object):
 class Searcher(object):
     def correct_token(self, token):
         index = self.index
-        if len(token) >= 5:
+        if len(token) > 2 and has_char(token):
             try:
                 if index.query(token, max_mistakes=0, keys_only=True).exact_total == 0:
-                    r = index.query(token, max_mistakes=1, keys_only=True)
-                    if r.exact_total == 0:
-                        r = index.query(token, max_mistakes=2, keys_only=True)
-                    if 0 < r.exact_total <= 10:
-                        new = map(lambda rec: rec.key, r.values)
-                        self.corrected.append((token, new))
-                        return new
+                    try:
+                        r = index.query(token, max_mistakes=1, keys_only=True)
+                        if r.exact_total == 0:
+                            r = index.query(token, max_mistakes=2, keys_only=True)
+                        if 0 < r.exact_total <= 10:
+                            new = map(lambda rec: rec.key, r.values)
+                            self.corrected.append((token, new))
+                            return new
+                        else:
+                            self.corrected.append((token, None))
+                    except rpcz.RpcDeadlineExceeded:
+                        self.corrected.append((token, None))
+                        raise
             except rpcz.RpcDeadlineExceeded:
                 self.correct_deadline = True
         return [token]
