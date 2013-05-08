@@ -43,11 +43,16 @@ class Searcher(object):
         token = token.lower()
         if len(token) > 2 and has_char(token):
             try:
-                if index.query(token, max_mistakes=0, keys_only=True).exact_total == 0:
+                self._TIME()
+                r = index.query(token, max_mistakes=0, keys_only=True)
+                self._TIME('index')
+                if r.exact_total == 0:
                     try:
                         r = index.query(token, max_mistakes=1, keys_only=True)
+                        self._TIME('index')
                         if r.exact_total == 0:
                             r = index.query(token, max_mistakes=2, keys_only=True)
+                            self._TIME('index')
                         if 0 < r.exact_total <= 10:
                             new = map(lambda rec: rec.key, r.values)
                             self.corrected.append((orig_token, new))
