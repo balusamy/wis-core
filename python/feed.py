@@ -71,9 +71,8 @@ if not args.disable_mongo:
 
 def update_avg_len():
     pipeline = [
-        {'$project': {'_id': 0, 'text': 1}},
-        {'$unwind': '$text'},
-        {'$group': {'_id': None, 'total': {'$sum': 1}}},
+        {'$project': {'_id': 0, 'size': 1}},
+        {'$group': {'_id': None, 'total': {'$sum': '$size'}}},
     ]
 
     avg_len = articles.aggregate(pipeline)['result'][0]['total'] / articles.count()
