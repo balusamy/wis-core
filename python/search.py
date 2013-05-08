@@ -69,21 +69,17 @@ class Searcher(object):
         return [token]
 
 
-    def __init__(self, query, server='tcp://localhost:5555', store_path='enwiki'):
+    def __init__(self, query, mongo_cred, server='tcp://localhost:5555', store_path='enwiki'):
         k1 = 1.6
         b = 0.75
 
         self.timings = defaultdict(lambda: 0)
         self.corrected = []
 
-        with open('mongo.cred', 'rt') as f:
-            MONGO_HOST = f.readline().strip()
-            MONGO_DB   = f.readline().strip()
-            MONGO_USER = f.readline().strip()
-            MONGO_PASS = f.readline().strip()
-        MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=MONGO_USER, password=MONGO_PASS, host=MONGO_HOST, db=MONGO_DB)
+        MONGO_ADDRESS = 'mongodb://{user}:{password}@{host}/{db}'.format(user=mongo_cred['user'], password=mongo_cred['password'],
+                                                                         host=mongo_cred['host'], db=mongo_cred['db'])
         self.mongo = MongoClient(MONGO_ADDRESS)
-        self.db = self.mongo[MONGO_DB]
+        self.db = self.mongo[mongo_cred['db']]
 
         index = self.index = IndexServer(server, store_path)
 
