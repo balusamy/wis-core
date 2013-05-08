@@ -27,7 +27,7 @@ class IndexServer(object):
         store.location = store_name
         self.iserver.useStore(store, deadline_ms=5)
 
-    def query(self, query_word, max_mistakes=0, timeout=2, keys_only=False):
+    def query(self, query_word, max_mistakes=0, timeout=3, keys_only=False):
         query = index_pb.WordQuery()
         query.options.Clear()
         query.options.keysOnly = keys_only
@@ -106,10 +106,10 @@ class Searcher(object):
 
             for kw in queryset:
                 self._TIME()
-                res = index.query(kw, max_mistakes=0, timeout=5)
+                res = index.query(kw, max_mistakes=0, timeout=4)
                 if res.exact_total == 0:
                     try:
-                        res = index.query(kw, max_mistakes=1, timeout=2)
+                        res = index.query(kw, max_mistakes=1, timeout=3)
                     except rpcz.RpcDeadlineExceeded:
                         self.extraquery_deadline = True
                 self._TIME('index')
