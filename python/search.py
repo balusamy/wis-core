@@ -48,9 +48,11 @@ class Searcher(object):
                 self._TIME('index')
                 if r.exact_total == 0:
                     try:
+                        self._TIME()
                         r = index.query(token, max_mistakes=1, keys_only=True)
                         self._TIME('index')
                         if r.exact_total == 0:
+                            self._TIME()
                             r = index.query(token, max_mistakes=2, keys_only=True)
                             self._TIME('index')
                         if 0 < r.exact_total <= 10:
@@ -86,11 +88,13 @@ class Searcher(object):
         index = self.index = IndexServer(server, store_path)
 
 
+        self._TIME()
         query_tokens = map(self.correct_token, tokens(query))
 
         querysets = set([frozenset(normalise_drop(ts)) for ts in query_tokens])
         querysets = filter(lambda s: s, querysets)
         if not querysets: raise NotEnoughEntropy()
+        self._TIME('proc')
 
         kw_docsets = defaultdict(lambda: frozenset())
         doc_poslists = defaultdict(lambda: defaultdict(lambda: []))
@@ -126,6 +130,7 @@ class Searcher(object):
                         doc_poslists[sha1][key].append(positions)
                         freq[key][sha1] += len(positions)
                     kw_docsets[key] = frozenset(key_set)
+                self._TIME('proc')
             if docs is None:
                 docs = matched_docs
             else:
@@ -135,7 +140,6 @@ class Searcher(object):
             self._TIME('proc')
 
 
-        self._TIME()
         doc_count = Counter()
         doc_count.update({kw: len(freq[kw]) for kw in freq})
 
@@ -149,7 +153,6 @@ class Searcher(object):
         scores = []
         avg_size = self.db.service.find_one({'_id': 'avg_len'})['val']
         doc_headers = self.db.articles.find({'_id': {'$in': list(docs)}, 'size': {'$gt': 0}}, {'size':1, 'title':1})
-        self._TIME('mongo')
         query_tokens = set([t for qs in query_tokens for t in qs])
         for d in doc_headers:
             score = 0
@@ -178,9 +181,7 @@ class Searcher(object):
             score += 10 * ratio
 
             scores.append((sha1, score))
-            self._TIME('ranking')
 
-        self._TIME()
         self.scores = sorted(scores, key=lambda p: p[1], reverse=True)
         self._TIME('ranking')
         self.results = map(lambda p: p[0], self.scores)
