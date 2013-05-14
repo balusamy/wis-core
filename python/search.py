@@ -25,7 +25,13 @@ class IndexServer(object):
                     self.app.create_rpc_channel(server_endpoint))
         store = index_pb.UseStore()
         store.location = store_name
-        self.iserver.useStore(store, deadline_ms=5)
+        try:
+          self.iserver.useStore(store, deadline_ms=3)
+        except rpcz.RpcDeadlineExceeded:
+          try:
+            self.iserver.useStore(store, deadline_ms=4)
+          except rpcz.RpcDeadlineExceeded:
+            self.iserver.useStore(store, deadline_ms=5)
 
     def query(self, query_word, max_mistakes=0, timeout=3, keys_only=False):
         query = index_pb.WordQuery()
@@ -102,7 +108,14 @@ class Searcher(object):
 
             for kw in queryset:
                 self._TIME()
-                res = index.query(kw, max_mistakes=0, timeout=4)
+                try :
+                  res = index.query(kw, max_mistakes=0, timeout=3)
+                except rpcz.RpcDeadlineExceeded:
+                  try:
+                    res = index.query(kw, max_mistakes=0, timeout=4)
+                  except rpcz.RpcDeadlineExceeded:
+                    res = index.query(kw, max_mistakes=0, timeout=5)
+
                 if res.exact_total == 0:
                     try:
                         res = index.query(kw, max_mistakes=1, timeout=3)
