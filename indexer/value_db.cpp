@@ -63,7 +63,6 @@ std::string value_db::get(string_ref const& key) const
     implementation const& impl = **this;
     auto conn = impl.connection();
     auto cursor = conn->get()->query(impl.ns, QUERY("key" << as_str(key)));
-    conn->done();
     std::ostringstream oss;
     while (cursor->more()) {
         auto const& obj = cursor->next();
@@ -71,6 +70,7 @@ std::string value_db::get(string_ref const& key) const
             oss << part.String();
         }
     }
+    conn->done();
     return oss.str();
 }
 
